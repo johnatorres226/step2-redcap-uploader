@@ -44,5 +44,3 @@ build/
 *.tmp
 *.bak
 
-# Ignore Directories currently being restructured
-docs/
