@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from config.redcap_config import REDCapConfig
+from ..config.redcap_config import REDCapConfig
 
 
 class REDCapFetcher:
