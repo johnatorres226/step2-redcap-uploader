@@ -46,4 +46,3 @@ build/
 
 # Ignore Directories currently being restructured
 docs/
-tests/

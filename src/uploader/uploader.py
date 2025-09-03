@@ -12,8 +12,8 @@ from .change_tracker import ChangeTracker, ChangeSet
 from .fetcher import REDCapFetcher
 from .data_processor import DataProcessor
 from .file_monitor import FileMonitor
-from config.settings import Settings
-from config.redcap_config import REDCapConfig
+from ..config.settings import Settings
+from ..config.redcap_config import REDCapConfig
 
 logger = logging.getLogger(__name__)
 
