@@ -61,12 +61,12 @@ class Settings:
         """Initialize computed fields."""
         self.DATA_DIR = self.BASE_DIR / "data"
         self.LOGS_DIR = self.BASE_DIR / "logs"
-        self.BACKUPS_DIR = self.BASE_DIR / "backups"
+        self.BACKUPS_DIR = Path(self.BACKUP_LOG_PATH)
         self.OUTPUT_DIR = self.BASE_DIR / "output"
         
         # Create directories if they don't exist
         for directory in [self.DATA_DIR, self.LOGS_DIR, self.BACKUPS_DIR, self.OUTPUT_DIR]:
-            directory.mkdir(exist_ok=True)
+            directory.mkdir(parents=True, exist_ok=True)
     
     @classmethod
     def from_env(cls) -> "Settings":

@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "udsv4-redcap-qc-uploader"
+name = "udsv4-ru"
 version = "1.0.0"
-description = "A comprehensive data management tool for uploading Excel/CSV files to REDCap with full change tracking, validation, and audit logging."
+description = "A simplified tool for uploading QC Status Report data to REDCap with audit logging."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -68,7 +68,7 @@ Repository = "https://github.com/your-org/udsv4-redcap-qc-uploader.git"
 "Bug Tracker" = "https://github.com/your-org/udsv4-redcap-qc-uploader/issues"
 
 [project.scripts]
-udsv4-redcap-uploader = "src.cli.cli:cli"
+udsv4-ru = "src.cli.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
