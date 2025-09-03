@@ -21,7 +21,7 @@ udsv4-redcap-uploader --initials JT [command] [options]
 - **Query Resolution Upload**: Upload Query Resolution Data from CSV/Excel files  
 - **Change Tracking**: Complete audit trail of all changes with fallback capabilities
 - **Duplicate Detection**: Intelligent detection using `qc_last_run` discriminatory variable
-- **File Monitoring**: Track processed files and detect changes
+- **End-to-End Process**: Complete fetch and upload workflow in one command
 - **Comprehensive Logging**: Detailed logging with backup mechanisms
 - **CLI Interface**: Easy-to-use command line interface
 
@@ -68,8 +68,8 @@ udsv4-redcap-uploader --initials JT upload-query-resolution --data-file ./data/q
 # Export current REDCap data
 udsv4-redcap-uploader --initials JT export-current-data --output-dir ./exports
 
-# Monitor files for changes
-udsv4-redcap-uploader --initials JT monitor-files --upload-path ./data
+# End-to-End Process (RECOMMENDED)
+udsv4-redcap-uploader --initials JT end2end --dry-run
 
 # Dry run (validation only)
 udsv4-redcap-uploader --initials JT upload-qc-status --upload-path ./data --dry-run
@@ -92,45 +92,21 @@ udsv4-redcap-uploader --initials JT upload-qc-status --upload-path ./data --forc
 3. **export-current-data**: Export current QC Status data from REDCap
    - `--output-dir`: Directory to save exported data (optional)
 
-4. **monitor-files**: Monitor directory for new files and show status
-   - `--upload-path`: Directory to monitor (optional, uses UPLOAD_READY_PATH)
+4. **end2end**: Complete fetch and upload process in one command
+   - `--upload-path`: Directory containing JSON files (optional, uses UPLOAD_READY_PATH)
+   - `--dry-run`: Perform validation without actual upload
+   - `--force`: Force upload even if data appears already uploaded
 
-## Project Structure
-
-```
-udsv4-redcap-qc-uploader/
-├── pyproject.toml             # Package configuration and CLI entry point
-├── config/
-│   ├── settings.py           # Application settings
-│   └── redcap_config.py      # REDCap API configuration
-├── src/
-│   ├── cli/
-│   │   └── cli.py           # Command line interface
-│   └── uploader/
-│       ├── uploader.py      # Main uploader class
-│       ├── fetcher.py       # REDCap data fetching
-│       ├── data_processor.py # Data processing and validation
-│       ├── change_tracker.py # Change tracking and audit
-│       ├── file_monitor.py  # File monitoring and status
-│       └── config.py        # Module configuration
-├── data/                    # Data directory
-├── logs/                    # Log files
-├── backups/                 # Backup files
-├── output/                  # Upload output directories
-└── tests/                   # Test files
-```
 
 ## Output Structure
 
-Each upload creates a timestamped output directory:
+Each process creates timestamped output directories with specific naming conventions:
 
-```
-output/
-└── REDCAP_UPLOAD_{TYPE}_{DDMMMYYYY}/
-    ├── FALLBACK_FILE_{timestamp}.json      # Backup data for rollback
-    ├── DATA_UPLOAD_RECEIPT_{timestamp}.json # Upload confirmation
-    └── LOG_FILE.txt                        # Operation log
-```
+
+### File Naming Conventions
+- **BU Suffix**: Files ending with `_BU` contain data from **Before Upload** (backup purposes)
+- **Timestamps**: Use format `DDMMMYYYY_HHMMSS` (e.g., `21Jul2025_141502`)
+- **Targeted Files**: Contain only QC-related fields instead of complete records
 
 ## Key Features
 

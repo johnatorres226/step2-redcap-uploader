@@ -81,22 +81,7 @@ udsv4-redcap-uploader --initials JT export-current-data [OPTIONS]
 udsv4-redcap-uploader --initials JT export-current-data --output-dir "C:\backups"
 ```
 
-### 4. Monitor Files
-Monitor a directory for new files and display processing status.
-
-```powershell
-udsv4-redcap-uploader --initials JT monitor-files [OPTIONS]
-```
-
-**Options:**
-- `--upload-path PATH`: Directory to monitor (default: from UPLOAD_READY_PATH in .env)
-
-**Example:**
-```powershell
-udsv4-redcap-uploader --initials JT monitor-files --upload-path "C:\data\incoming"
-```
-
-### 5. End-to-End Process (NEW!)
+### 4. End-to-End Process (RECOMMENDED!)
 Complete fetch and upload in one command.
 
 ```powershell

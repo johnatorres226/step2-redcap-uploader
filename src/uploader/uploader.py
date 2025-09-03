@@ -34,7 +34,8 @@ class QCDataUploader:
         self.file_monitor = FileMonitor(Path(settings.UPLOAD_READY_PATH), logger)
     
     def upload_qc_status_data(self, upload_path: Path, initials: str, 
-                            dry_run: bool = False, force_upload: bool = False) -> Dict[str, Any]:
+                            dry_run: bool = False, force_upload: bool = False,
+                            custom_output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """
         Upload QC Status Report Data from JSON files.
         
@@ -43,17 +44,20 @@ class QCDataUploader:
             initials: User initials for logging
             dry_run: If True, perform validation without actual upload
             force_upload: If True, skip duplicate checking
+            custom_output_dir: If provided, use this directory instead of creating a new one
             
         Returns:
             Dict containing upload results
         """
         try:
             self.logger.info(f"Starting QC Status upload process (User: {initials})")
-            
+
             # Create output directory
-            output_dir = self._create_output_directory("QC_STATUS")
-            
-            # Find latest JSON files
+            if custom_output_dir:
+                output_dir = custom_output_dir
+                output_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                output_dir = self._create_output_directory("QC_STATUS")            # Find latest JSON files
             json_files = self._find_latest_files(upload_path, "*.json")
             
             if not json_files:
@@ -115,46 +119,55 @@ class QCDataUploader:
                     'output_directory': str(output_dir)
                 }
             
-            # Create fallback file
-            fallback_data = self._create_backup_data(current_data, upload_data)
-            fallback_file = output_dir / f"FALLBACK_FILE_{datetime.now().strftime('%d%b%Y_%H%M%S')}.json"
-            with open(fallback_file, 'w', encoding='utf-8') as f:
-                json.dump(fallback_data, f, indent=2, ensure_ascii=False)
-            
+            # Add audit trail to upload data
+            self.logger.info("Adding audit trail entries to upload data...")
+            upload_data_with_audit = self.data_processor.add_audit_trail(
+                upload_data, current_data, initials
+            )
+
+            # Create backup data for upload receipt
+            backup_data = self._create_backup_data(current_data, upload_data_with_audit)
+
             # Perform upload (if not dry run)
             if not dry_run:
-                upload_result = self._upload_to_redcap(upload_data)
+                upload_result = self._upload_to_redcap(upload_data_with_audit)
                 
                 if upload_result['success']:
                     # Create upload receipt
                     receipt_data = {
                         'upload_timestamp': datetime.now().isoformat(),
                         'user_initials': initials,
-                        'records_uploaded': len(upload_data),
+                        'records_uploaded': len(upload_data_with_audit),
                         'files_processed': [f.name for f in json_files],
                         'upload_result': upload_result
                     }
                     
-                    receipt_file = output_dir / f"DATA_UPLOAD_RECEIPT_{datetime.now().strftime('%d%b%Y_%H%M%S')}.json"
+                    receipt_file = output_dir / f"DataUploaded_Recipt_{datetime.now().strftime('%d%b%Y_%H%M%S')}.json"
                     with open(receipt_file, 'w', encoding='utf-8') as f:
                         json.dump(receipt_data, f, indent=2, ensure_ascii=False)
+                    
+                    # Save uploaded data to file for reference
+                    uploaded_data_file = output_dir / f"DataUploaded_{datetime.now().strftime('%d%b%Y_%H%M%S')}.json"
+                    with open(uploaded_data_file, 'w', encoding='utf-8') as f:
+                        json.dump(upload_data_with_audit, f, indent=2, ensure_ascii=False)
                     
                     # Update tracking
                     self._track_upload(
                         upload_type='qc_status',
                         file_paths=[str(f) for f in json_files],
                         initials=initials,
-                        records_count=len(upload_data)
+                        records_count=len(upload_data_with_audit)
                     )
                     
-                    self.logger.info(f"Successfully uploaded {len(upload_data)} QC Status records")
+                    self.logger.info(f"Successfully uploaded {len(upload_data_with_audit)} QC Status records")
                     
                     return {
                         'success': True,
-                        'records_processed': len(upload_data),
+                        'records_processed': len(upload_data_with_audit),
                         'output_directory': str(output_dir),
-                        'fallback_file': str(fallback_file),
-                        'receipt_file': str(receipt_file)
+                        'receipt_file': str(receipt_file),
+                        'uploaded_data_file': str(uploaded_data_file),
+                        'backup_data': backup_data
                     }
                 else:
                     return {
@@ -163,10 +176,10 @@ class QCDataUploader:
                         'output_directory': str(output_dir)
                     }
             else:
-                self.logger.info(f"DRY RUN: Would upload {len(upload_data)} records")
+                self.logger.info(f"DRY RUN: Would upload {len(upload_data_with_audit)} records")
                 return {
                     'success': True,
-                    'records_processed': len(upload_data),
+                    'records_processed': len(upload_data_with_audit),
                     'output_directory': str(output_dir),
                     'dry_run': True
                 }
@@ -293,7 +306,7 @@ class QCDataUploader:
     def _create_output_directory(self, upload_type: str) -> Path:
         """Create output directory with timestamp."""
         timestamp = datetime.now().strftime('%d%b%Y')
-        dir_name = f"REDCAP_UPLOAD_{upload_type}_{timestamp}"
+        dir_name = f"REDCAP_UPLOADER_{upload_type}_{timestamp}"
         output_dir = Path('./output') / dir_name
         output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -407,7 +420,7 @@ class QCDataUploader:
         """Validate QC Status data structure and content."""
         try:
             validation_errors = []
-            required_fields = ['record_id', 'qc_last_run']
+            required_fields = ['ptid', 'qc_last_run']
             
             for i, record in enumerate(data):
                 record_errors = []
@@ -420,7 +433,7 @@ class QCDataUploader:
                 if record_errors:
                     validation_errors.append({
                         'record_index': i,
-                        'record_id': record.get('record_id', 'Unknown'),
+                        'record_id': record.get('ptid', 'Unknown'),
                         'errors': record_errors
                     })
             
@@ -495,10 +508,10 @@ class QCDataUploader:
         if not current_data:
             return new_data
         
-        # Create lookup of current qc_last_run values by record_id
+        # Create lookup of current qc_last_run values by ptid
         current_lookup = {}
         for record in current_data:
-            record_id = record.get('record_id')
+            record_id = record.get('ptid')
             qc_last_run = record.get('qc_last_run')
             if record_id and qc_last_run:
                 current_lookup[record_id] = qc_last_run
@@ -506,7 +519,7 @@ class QCDataUploader:
         # Filter new records
         new_records = []
         for record in new_data:
-            record_id = record.get('record_id')
+            record_id = record.get('ptid')
             qc_last_run = record.get('qc_last_run')
             
             if record_id and qc_last_run:

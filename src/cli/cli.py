@@ -17,6 +17,18 @@ from config.redcap_config import REDCapConfig
 from config.settings import Settings
 
 
+def create_end2end_output_directory() -> Path:
+    """Create a single consolidated output directory for end2end process."""
+    # Generate timestamp in same format as fetcher: DDMMMYYYY_HHMMSS
+    timestamp = datetime.now().strftime('%d%b%Y_%H%M%S')
+    
+    dir_name = f"REDCAP_CompleteUpload_{timestamp}"
+    output_dir = Path('./output') / dir_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    return output_dir
+
+
 def setup_logging(initials: str) -> logging.Logger:
     """Setup logging configuration."""
     logger = logging.getLogger("udsv4_redcap_uploader")
@@ -53,7 +65,15 @@ def cli(ctx, initials: str):
               help='Force upload even if data appears to be already uploaded')
 @click.pass_context
 def upload_qc_status(ctx, upload_path: Optional[Path], dry_run: bool, force: bool):
-    """Upload QC Status Report Data from JSON files."""
+    """
+    Upload QC Status Report Data from JSON files.
+    
+    This command uploads QC status data to REDCap and automatically maintains 
+    an audit trail in the 'qc_results' field. Each upload adds an entry with:
+    [Date Stamp] {qc_status value} {qc_run_by}; 
+    
+    This creates a complete history of all QC runs for each record.
+    """
     initials = ctx.obj['initials']
     logger = ctx.obj['logger']
     
@@ -106,63 +126,6 @@ def upload_query_resolution(ctx, data_file: Path, dry_run: bool):
 
 
 @cli.command()
-@click.option('--output-dir', type=click.Path(path_type=Path),
-              help='Directory to save exported data')
-@click.pass_context
-def export_current_data(ctx, output_dir: Optional[Path]):
-    """Export current QC Status data from REDCap."""
-    initials = ctx.obj['initials']
-    logger = ctx.obj['logger']
-    
-    logger.info(f"Starting data export process (User: {initials})")
-    
-    try:
-        # Initialize components
-        config = REDCapConfig.from_env()
-        
-        # Import the fetcher here to avoid circular imports
-        from src.uploader.fetcher import REDCapFetcher
-        
-        # Initialize fetcher
-        fetcher = REDCapFetcher(config, logger)
-        
-        # Set default output directory
-        if not output_dir:
-            output_dir = Path('./output')
-        
-        logger.info(f"Output directory: {output_dir}")
-        
-        # Fetch current data from REDCap
-        logger.info("Fetching current QC Status data from REDCap...")
-        fetch_result = fetcher.fetch_qc_status_data()
-        
-        if not fetch_result['success']:
-            logger.error(f"Failed to fetch data: {fetch_result['error']}")
-            raise click.ClickException("Failed to fetch data from REDCap")
-        
-        logger.info(f"Successfully fetched {fetch_result['record_count']} records")
-        
-        # Save to output directory
-        save_result = fetcher.save_fetched_data_to_output(
-            fetch_result, 
-            output_dir, 
-            "EXPORTED_QC_DATA"
-        )
-        
-        if save_result['success']:
-            logger.info(f"Data exported successfully!")
-            logger.info(f"Export file: {save_result['file_path']}")
-            logger.info(f"Records exported: {save_result['record_count']}")
-        else:
-            logger.error(f"Failed to save exported data: {save_result['error']}")
-            raise click.ClickException("Failed to save exported data")
-            
-    except Exception as e:
-        logger.error(f"Export process failed: {str(e)}")
-        raise click.ClickException(str(e))
-
-
-@cli.command()
 @click.option('--upload-path', type=click.Path(exists=True, path_type=Path),
               help='Path to directory containing JSON files to upload')
 @click.option('--dry-run', is_flag=True, default=False,
@@ -178,6 +141,10 @@ def end2end(ctx, upload_path: Optional[Path], dry_run: bool, force: bool):
     logger.info(f"Starting end-to-end process (User: {initials})")
     
     try:
+        # Create consolidated end2end output directory
+        end2end_output_dir = create_end2end_output_directory()
+        logger.info(f"End2End output directory: {end2end_output_dir}")
+        
         # Initialize components
         config = REDCapConfig.from_env()
         settings = Settings.from_env()
@@ -208,23 +175,61 @@ def end2end(ctx, upload_path: Optional[Path], dry_run: bool, force: bool):
         
         logger.info(f"Successfully fetched {current_data_result['record_count']} records from REDCap")
         
-        # Step 2: Save fetched data to output directory
-        output_dir = Path('./output')
-        output_dir.mkdir(exist_ok=True)
+        # Step 2: Save fetched data to consolidated end2end directory
+        # Create fetch subdirectory
+        fetch_dir = end2end_output_dir / f"REDCAP_DataFetcher_{datetime.now().strftime('%d%b%Y')}"
         
         save_result = fetcher.save_fetched_data_to_output(
             current_data_result, 
-            output_dir, 
-            "CURRENT_REDCAP_DATA"
+            fetch_dir, 
+            "REDCAP_PriorToUpload_BackupFile",
+            create_subdir=False
         )
         
         if save_result['success']:
             logger.info(f"Current REDCap data saved to: {save_result['file_path']}")
+        else:
+            backup_result = {'success': False, 'files_created': []}
         
-        # Step 3: Check for files to upload
+        # Step 3: Check for files to upload and determine what records will be uploaded
+        upload_data_preview = []
         if upload_path.exists():
             json_files = list(upload_path.glob("*.json"))
             logger.info(f"Found {len(json_files)} JSON files to process")
+            
+            if json_files:
+                # Preview what will be uploaded to create targeted backup
+                for json_file in json_files:
+                    try:
+                        with open(json_file, 'r', encoding='utf-8') as f:
+                            file_data = json.load(f)
+                        
+                        if isinstance(file_data, list):
+                            upload_data_preview.extend(file_data)
+                        elif isinstance(file_data, dict) and 'data' in file_data:
+                            upload_data_preview.extend(file_data['data'])
+                        else:
+                            upload_data_preview.append(file_data)
+                    except Exception as e:
+                        logger.warning(f"Could not preview {json_file.name}: {str(e)}")
+                
+                # Create targeted backup based on upload data
+                backup_result = fetcher.save_backup_files_to_directory(
+                    current_data_result,
+                    fetch_dir,
+                    upload_data_preview
+                )
+                
+                if backup_result['success']:
+                    logger.info(f"Targeted backup file created: {len(backup_result['files_created'])} files")
+            else:
+                backup_result = {'success': False, 'files_created': []}
+        else:
+            backup_result = {'success': False, 'files_created': []}
+            
+        # Step 4: Process upload if files exist
+        if upload_path.exists():
+            json_files = list(upload_path.glob("*.json"))
             
             if json_files:
                 # Step 4: Process upload (dry run or actual)
@@ -252,19 +257,80 @@ def end2end(ctx, upload_path: Optional[Path], dry_run: bool, force: bool):
                             logger.warning(f"    Could not preview file content: {str(e)}")
                     
                     logger.info("DRY RUN COMPLETE: No data was uploaded to REDCap")
+                    
+                    # Create dry run log
+                    dry_run_log = {
+                        'end2end_timestamp': datetime.now().isoformat(),
+                        'user_initials': initials,
+                        'dry_run': True,
+                        'force_upload': force,
+                        'fetch_results': {
+                            'records_fetched': current_data_result['record_count'],
+                            'current_data_backup': save_result.get('file_path', 'N/A'),
+                            'targeted_qc_backup': backup_result.get('qc_backup_file', 'N/A'),
+                            'fetch_directory': str(fetch_dir)
+                        },
+                        'dry_run_results': {
+                            'files_analyzed': [f.name for f in json_files],
+                            'would_process': True
+                        }
+                    }
+                    
+                    # Save dry run log
+                    dry_run_log_file = end2end_output_dir / "Dryrun_Summary.json"
+                    with open(dry_run_log_file, 'w', encoding='utf-8') as f:
+                        json.dump(dry_run_log, f, indent=2, ensure_ascii=False)
+                    
+                    logger.info(f"Dry run summary saved to: {dry_run_log_file}")
+                    logger.info(f"All outputs in: {end2end_output_dir}")
                 else:
                     logger.info("Step 4: Performing actual upload...")
+                    
+                    # Create upload subdirectory
+                    upload_dir = end2end_output_dir / f"REDCAP_Uploader_NewQCResults_{datetime.now().strftime('%d%b%Y')}"
+                    
                     upload_result = uploader.upload_qc_status_data(
                         upload_path=upload_path,
                         initials=initials,
                         dry_run=False,
-                        force_upload=force
+                        force_upload=force,
+                        custom_output_dir=upload_dir
                     )
                     
                     if upload_result['success']:
                         logger.info(f"Upload completed successfully!")
                         logger.info(f"Records processed: {upload_result.get('records_processed', 0)}")
-                        logger.info(f"Output directory: {upload_result.get('output_directory', 'N/A')}")
+                        
+                        # Create comprehensive end2end log
+                        end2end_log = {
+                            'end2end_timestamp': datetime.now().isoformat(),
+                            'user_initials': initials,
+                            'dry_run': dry_run,
+                            'force_upload': force,
+                            'fetch_results': {
+                                'records_fetched': current_data_result['record_count'],
+                                'current_data_backup': save_result.get('file_path', 'N/A'),
+                                'targeted_qc_backup': backup_result.get('qc_backup_file', 'N/A'),
+                                'fetch_directory': str(fetch_dir)
+                            },
+                            'upload_results': {
+                                'records_processed': upload_result.get('records_processed', 0),
+                                'files_uploaded': [f.name for f in json_files],
+                                'receipt_file': upload_result.get('receipt_file', 'N/A'),
+                                'uploaded_data_file': upload_result.get('uploaded_data_file', 'N/A'),
+                                'upload_directory': str(upload_dir),
+                                'fallback_files': [backup_result.get('qc_backup_file', 'N/A')]
+                            },
+                            'comprehensive_log_updated': True
+                        }
+                        
+                        # Save end2end log
+                        end2end_log_file = end2end_output_dir / "END2END_SUMMARY.json"
+                        with open(end2end_log_file, 'w', encoding='utf-8') as f:
+                            json.dump(end2end_log, f, indent=2, ensure_ascii=False)
+                        
+                        logger.info(f"End2End summary saved to: {end2end_log_file}")
+                        logger.info(f"All outputs in: {end2end_output_dir}")
                     else:
                         logger.error(f"Upload failed: {upload_result.get('error', 'Unknown error')}")
                         raise click.ClickException("Upload process failed")
@@ -348,42 +414,6 @@ def fetch(ctx, upload_path: Optional[Path], output_dir: Path):
         
     except Exception as e:
         logger.error(f"Fetch process failed: {str(e)}")
-        raise click.ClickException(str(e))
-
-
-@cli.command()
-@click.option('--upload-path', type=click.Path(exists=True, path_type=Path),
-              help='Path to monitor for new files')
-@click.pass_context
-def monitor_files(ctx, upload_path: Optional[Path]):
-    """Monitor directory for new files and display processing status."""
-    initials = ctx.obj['initials']
-    logger = ctx.obj['logger']
-    
-    logger.info(f"Starting file monitoring (User: {initials})")
-    
-    try:
-        # Determine upload path
-        settings = Settings.from_env()
-        if not upload_path:
-            upload_path = Path(settings.UPLOAD_READY_PATH)
-        
-        logger.info(f"Monitoring path: {upload_path}")
-        
-        if upload_path.exists():
-            files = list(upload_path.rglob("*"))
-            data_files = [f for f in files if f.is_file() and f.suffix in ['.json', '.csv', '.xlsx']]
-            
-            logger.info(f"Found {len(data_files)} data files:")
-            for file in data_files:
-                stats = file.stat()
-                last_modified = datetime.fromtimestamp(stats.st_mtime)
-                logger.info(f"  - {file.name} (Size: {stats.st_size} bytes, Modified: {last_modified.isoformat()})")
-        else:
-            logger.warning(f"Path does not exist: {upload_path}")
-            
-    except Exception as e:
-        logger.error(f"Failed to monitor files: {str(e)}")
         raise click.ClickException(str(e))
 
 

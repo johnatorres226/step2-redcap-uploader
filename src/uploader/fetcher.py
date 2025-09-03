@@ -27,6 +27,7 @@ class REDCapFetcher:
             'qc_notes',
             'qc_status',
             'qc_results',
+            'qc_run_by',
             'quality_control_check_complete'
         ]
     
@@ -535,7 +536,8 @@ class REDCapFetcher:
             }
 
     def save_fetched_data_to_output(self, data: Dict[str, Any], output_dir: Path, 
-                                  filename_prefix: str = "FETCHED_DATA") -> Dict[str, Any]:
+                                  filename_prefix: str = "FETCHED_DATA",
+                                  create_subdir: bool = True) -> Dict[str, Any]:
         """
         Save fetched data to output directory in the required format.
         
@@ -543,15 +545,20 @@ class REDCapFetcher:
             data: Fetched data to save
             output_dir: Output directory
             filename_prefix: Prefix for the filename
+            create_subdir: If True, create REDCAP_FETCH subdirectory, else save directly
             
         Returns:
             Dict with save results
         """
         try:
-            # Create timestamped subdirectory
-            timestamp = datetime.now().strftime('%d%b%Y')
-            redcap_dir = output_dir / f"REDCAP_FETCH_{timestamp}"
-            redcap_dir.mkdir(parents=True, exist_ok=True)
+            # Create timestamped subdirectory or use provided directory directly
+            if create_subdir:
+                timestamp = datetime.now().strftime('%d%b%Y')
+                redcap_dir = output_dir / f"REDCAP_FETCH_{timestamp}"
+                redcap_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                redcap_dir = output_dir
+                redcap_dir.mkdir(parents=True, exist_ok=True)
             
             # Create filename with timestamp
             time_stamp = datetime.now().strftime('%d%b%Y_%H%M%S')
@@ -578,11 +585,99 @@ class REDCapFetcher:
                 'success': True,
                 'file_path': str(file_path),
                 'directory': str(redcap_dir),
-                'record_count': export_data['fetch_metadata']['record_count']
+                'record_count': export_data['fetch_metadata']['record_count'],
+                'files_created': [str(file_path)]
             }
             
         except Exception as e:
             error_msg = f"Failed to save fetched data: {str(e)}"
+            self.logger.error(error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+
+    def save_backup_files_to_directory(self, data: Dict[str, Any], output_dir: Path, 
+                                      upload_data: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Save backup files (targeted QC data only) to specified directory.
+        
+        Args:
+            data: Fetched data to create backups from
+            output_dir: Directory to save backup files
+            upload_data: List of records being uploaded (to target only those PTIDs)
+            
+        Returns:
+            Dict with save results and file paths
+        """
+        try:
+            timestamp = datetime.now().strftime('%d%b%Y_%H%M%S')
+            saved_files = []
+            
+            # Get PTIDs from upload data to target specific records
+            target_ptids = set()
+            if upload_data:
+                for record in upload_data:
+                    ptid = record.get('ptid')
+                    if ptid:
+                        target_ptids.add(ptid)
+                self.logger.info(f"Targeting QC backup for {len(target_ptids)} PTIDs: {sorted(target_ptids)}")
+            
+            # Create targeted QC Status data backup (only QC-related fields for targeted PTIDs)
+            qc_backup_file = output_dir / f"QCStatus_SubsetData_BackupFile_{timestamp}.json"
+            
+            # Filter data to only include QC status fields for targeted PTIDs
+            targeted_data = []
+            full_data = data.get('data', [])
+            
+            for record in full_data:
+                # If we have upload data, only include records for PTIDs being uploaded
+                record_ptid = record.get('ptid')
+                if upload_data and target_ptids and record_ptid not in target_ptids:
+                    continue
+                
+                # Create filtered record with only QC status fields
+                filtered_record = {}
+                for field in self.qc_status_fields:
+                    if field in record:
+                        filtered_record[field] = record[field]
+                # Always include redcap_event_name for proper record identification
+                if 'redcap_event_name' in record:
+                    filtered_record['redcap_event_name'] = record['redcap_event_name']
+                
+                # Only add record if it has some QC data
+                if len(filtered_record) > 1:  # More than just redcap_event_name
+                    targeted_data.append(filtered_record)
+            
+            qc_backup_data = {
+                'qc_metadata': {
+                    'fetch_timestamp': datetime.now().isoformat(),
+                    'record_count': len(targeted_data),
+                    'fields_included': self.qc_status_fields,
+                    'target_ptids': sorted(target_ptids) if target_ptids else [],
+                    'fetch_type': 'qc_status_form_targeted',
+                    'purpose': 'Current QC STATUS data that will be overwritten (targeted PTIDs and fields only)'
+                },
+                'data': targeted_data
+            }
+            
+            with open(qc_backup_file, 'w', encoding='utf-8') as f:
+                json.dump(qc_backup_data, f, indent=2, ensure_ascii=False)
+            saved_files.append(str(qc_backup_file))
+            self.logger.info(f"QC STATUS targeted backup saved to: {qc_backup_file}")
+            if target_ptids:
+                self.logger.info(f"Targeted backup contains {len(targeted_data)} records for {len(target_ptids)} PTIDs")
+            else:
+                self.logger.info(f"Targeted backup contains {len(targeted_data)} records with QC data")
+            
+            return {
+                'success': True,
+                'files_created': saved_files,
+                'qc_backup_file': str(qc_backup_file)
+            }
+            
+        except Exception as e:
+            error_msg = f"Failed to save backup files: {str(e)}"
             self.logger.error(error_msg)
             return {
                 'success': False,

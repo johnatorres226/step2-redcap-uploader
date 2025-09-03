@@ -326,3 +326,66 @@ class DataProcessor:
         """Clear validation results."""
         self.validation_errors.clear()
         self.validation_warnings.clear()
+
+    def add_audit_trail(self, upload_data: List[Dict[str, Any]], 
+                       current_redcap_data: List[Dict[str, Any]], 
+                       user_initials: str) -> List[Dict[str, Any]]:
+        """
+        Add audit trail entries to qc_results field for each upload record.
+        
+        The audit trail format is: "[Date Stamp] {qc_status value} {qc_run_by}; "
+        This gets appended to any existing qc_results content.
+        
+        Args:
+            upload_data: List of records to be uploaded
+            current_redcap_data: Current data from REDCap for comparison
+            user_initials: User initials for the audit trail
+            
+        Returns:
+            List of records with updated qc_results field
+        """
+        # Create lookup for current REDCap data
+        current_lookup = {}
+        for record in current_redcap_data:
+            key = (record.get('ptid', ''), record.get('redcap_event_name', ''))
+            current_lookup[key] = record
+        
+        # Generate timestamp for audit trail
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        # Process each upload record
+        updated_records = []
+        for record in upload_data:
+            # Create a copy of the record
+            updated_record = record.copy()
+            
+            # Get the key for this record
+            key = (record.get('ptid', ''), record.get('redcap_event_name', ''))
+            
+            # Get current qc_results value from REDCap (if exists)
+            current_qc_results = ''
+            if key in current_lookup:
+                current_qc_results = current_lookup[key].get('qc_results', '') or ''
+            
+            # Extract values for audit trail
+            qc_status = record.get('qc_status', '')
+            qc_run_by = record.get('qc_run_by', user_initials)
+            
+            # Create audit trail entry
+            audit_entry = f"[{timestamp}] {qc_status} {qc_run_by}; "
+            
+            # Append to existing qc_results content
+            if current_qc_results.strip():
+                updated_qc_results = current_qc_results.rstrip() + " " + audit_entry
+            else:
+                updated_qc_results = audit_entry
+            
+            # Add qc_results to the upload record
+            updated_record['qc_results'] = updated_qc_results
+            
+            updated_records.append(updated_record)
+            
+            logger.debug(f"Added audit trail for {key}: {audit_entry}")
+        
+        logger.info(f"Added audit trail entries to {len(updated_records)} records")
+        return updated_records
