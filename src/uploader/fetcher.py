@@ -624,7 +624,7 @@ class REDCapFetcher:
                 self.logger.info(f"Targeting QC backup for {len(target_ptids)} PTIDs: {sorted(target_ptids)}")
             
             # Create targeted QC Status data backup (only QC-related fields for targeted PTIDs)
-            qc_backup_file = output_dir / f"QCStatus_SubsetData_BackupFile_{timestamp}.json"
+            qc_backup_file = output_dir / f"BackupFile_TargetData_{timestamp}.json"
             
             # Filter data to only include QC status fields for targeted PTIDs
             targeted_data = []

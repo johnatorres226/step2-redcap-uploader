@@ -33,14 +33,17 @@ class QCDataUploader:
         self.change_tracker = ChangeTracker(settings.LOGS_DIR)
         self.file_monitor = FileMonitor(Path(settings.UPLOAD_READY_PATH), logger)
     
-    def upload_qc_status_data(self, upload_path: Path, initials: str, 
+    def upload_qc_status_data(self, upload_path: Optional[Path] = None, 
+                            specific_file: Optional[Path] = None,
+                            initials: str = "", 
                             dry_run: bool = False, force_upload: bool = False,
                             custom_output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """
         Upload QC Status Report Data from JSON files.
         
         Args:
-            upload_path: Path to directory containing JSON files
+            upload_path: Path to directory containing JSON files (deprecated - use specific_file)
+            specific_file: Path to specific JSON file to upload
             initials: User initials for logging
             dry_run: If True, perform validation without actual upload
             force_upload: If True, skip duplicate checking
@@ -57,13 +60,38 @@ class QCDataUploader:
                 output_dir = custom_output_dir
                 output_dir.mkdir(parents=True, exist_ok=True)
             else:
-                output_dir = self._create_output_directory("QC_STATUS")            # Find latest JSON files
-            json_files = self._find_latest_files(upload_path, "*.json")
-            
-            if not json_files:
+                output_dir = self._create_output_directory("QC_STATUS")
+                
+            # Determine which files to process
+            json_files = []
+            if specific_file:
+                # Process only the specific file
+                if not specific_file.exists():
+                    return {
+                        'success': False,
+                        'error': f'Specified file not found: {specific_file}',
+                        'output_directory': str(output_dir)
+                    }
+                json_files = [specific_file]
+                self.logger.info(f"Processing specific file: {specific_file.name}")
+            elif upload_path:
+                # Fall back to old behavior for backward compatibility
+                json_files = self._find_latest_files(upload_path, "*.json")
+                self.logger.warning("Using deprecated upload_path parameter. Consider using specific_file instead.")
+            else:
                 return {
                     'success': False,
-                    'error': f'No JSON files found in {upload_path}',
+                    'error': 'Either specific_file or upload_path must be provided',
+                    'output_directory': str(output_dir)
+                }
+            
+            if not json_files:
+                error_msg = 'No JSON files found'
+                if upload_path:
+                    error_msg += f' in {upload_path}'
+                return {
+                    'success': False,
+                    'error': error_msg,
                     'output_directory': str(output_dir)
                 }
             

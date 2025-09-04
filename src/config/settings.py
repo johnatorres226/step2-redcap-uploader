@@ -34,7 +34,7 @@ class Settings:
     LOG_TO_CONSOLE: bool = True
     
     # Directories
-    BASE_DIR: Path = field(default_factory=lambda: Path(__file__).parent.parent)
+    BASE_DIR: Path = field(default_factory=lambda: Path(__file__).parent.parent.parent)
     DATA_DIR: Path = field(init=False)
     LOGS_DIR: Path = field(init=False)
     BACKUPS_DIR: Path = field(init=False)
@@ -59,10 +59,11 @@ class Settings:
     
     def __post_init__(self):
         """Initialize computed fields."""
-        self.DATA_DIR = self.BASE_DIR / "data"
-        self.LOGS_DIR = self.BASE_DIR / "logs"
+        # Use environment variables if available, otherwise use BASE_DIR
+        self.DATA_DIR = Path(os.getenv("DATA_DIR", self.BASE_DIR / "data"))
+        self.LOGS_DIR = Path(os.getenv("LOG_PATH", self.BASE_DIR / "logs"))
         self.BACKUPS_DIR = Path(self.BACKUP_LOG_PATH)
-        self.OUTPUT_DIR = self.BASE_DIR / "output"
+        self.OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", self.BASE_DIR / "output"))
         
         # Create directories if they don't exist
         for directory in [self.DATA_DIR, self.LOGS_DIR, self.BACKUPS_DIR, self.OUTPUT_DIR]:

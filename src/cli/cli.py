@@ -76,9 +76,10 @@ def create_output_directory(output_dir: Optional[Path] = None) -> Path:
     if output_dir:
         output_dir = Path(output_dir)
     else:
-        # Generate timestamp in same format as fetcher: DDMMMYYYY_HHMMSS
-        timestamp = datetime.now().strftime('%d%b%Y_%H%M%S')
-        dir_name = f"REDCAP_CompleteUpload_{timestamp}"
+        # Generate timestamp in requested format: DDMMMYYYY and HHMMSS
+        date_part = datetime.now().strftime('%d%b%Y')
+        time_part = datetime.now().strftime('%H%M%S')
+        dir_name = f"REDCAP_Uploader_{date_part}_{time_part}"
         output_dir = Path('./output') / dir_name
     
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -164,13 +165,13 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
         logger.info(f"Successfully fetched {current_data_result['record_count']} records from REDCap")
         
         # Step 2: Save fetched data to output directory
-        # Create fetch subdirectory
-        fetch_dir = output_directory / f"REDCAP_DataFetcher_{datetime.now().strftime('%d%b%Y')}"
+        # Create fetch subdirectory (rename to Preupload)
+        fetch_dir = output_directory / f"Preupload"
         
         save_result = fetcher.save_fetched_data_to_output(
             current_data_result, 
             fetch_dir, 
-            "REDCAP_PriorToUpload_BackupFile",
+            "BackupFile_Database",
             create_subdir=False
         )
         
@@ -221,25 +222,25 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
                 
         except Exception as e:
             logger.warning(f"Could not create targeted backup: {str(e)}")
-        
+
         # Step 5: Perform upload
         logger.info("Step 5: Uploading data to REDCap...")
-        
-        # Create upload subdirectory
-        upload_results_dir = output_directory / f"REDCAP_Uploader_NewQCResults_{datetime.now().strftime('%d%b%Y')}"
-        
+
+        # Create upload subdirectory (rename to Upload)
+        upload_results_dir = output_directory / f"Upload"
+
         upload_result = uploader.upload_qc_status_data(
-            upload_path=upload_dir,
+            specific_file=latest_file,
             initials=initials,
             dry_run=False,
             force_upload=force,
             custom_output_dir=upload_results_dir
         )
-        
+
         if upload_result['success']:
             logger.info(f"Upload completed successfully!")
             logger.info(f"Records processed: {upload_result.get('records_processed', 0)}")
-            
+
             # Create comprehensive summary log
             summary_log = {
                 'upload_timestamp': datetime.now().isoformat(),
@@ -259,12 +260,12 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
                     'upload_directory': str(upload_results_dir)
                 }
             }
-            
+
             # Save summary log
             summary_log_file = output_directory / "UPLOAD_SUMMARY.json"
             with open(summary_log_file, 'w', encoding='utf-8') as f:
                 json.dump(summary_log, f, indent=2, ensure_ascii=False)
-            
+
             logger.info(f"Upload summary saved to: {summary_log_file}")
             logger.info(f"All outputs in: {output_directory}")
             logger.info("UDSv4 REDCap upload process completed successfully!")

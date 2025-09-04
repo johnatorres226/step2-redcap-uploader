@@ -28,7 +28,7 @@ Responsibilities:
 
 Key methods and behavior:
 
-- `upload_qc_status_data(upload_path, initials, dry_run=False, force_upload=False, custom_output_dir=None)`
+- `upload_qc_status_data(upload_path=None, specific_file=None, initials, dry_run=False, force_upload=False, custom_output_dir=None)`
   - Reads JSON files (via `_find_latest_files`), validates structure (`_load_json_file`, `_validate_qc_data`).
   - Filters new records using `_filter_new_records()` which compares `qc_last_run` values to current REDCap data.
   - Adds audit trail entries using `DataProcessor.add_audit_trail()`.
