@@ -2,10 +2,11 @@
 
 import json
 import logging
-import requests
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
+import requests
 
 from ..config.redcap_config import REDCapConfig
 
@@ -135,7 +136,7 @@ class REDCapFetcher:
                 }
             }
             
-            self.logger.info(f"Analysis complete:")
+            self.logger.info("Analysis complete:")
             self.logger.info(f"  - Files processed: {len(json_files)}")
             self.logger.info(f"  - Total unique records: {len(all_record_ids)}")
             self.logger.info(f"  - QC fields to fetch: {qc_fields_in_upload}")

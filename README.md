@@ -4,7 +4,6 @@ A comprehensive tool for uploading QC Status and Query Resolution data to REDCap
 
 ## Table of Contents
 
-- [Quick Start](#-quick-start)
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -20,44 +19,6 @@ A comprehensive tool for uploading QC Status and Query Resolution data to REDCap
 - [Logging](#logging)
 - [Support](#support)
 
-
-## 🚀 Quick Start
-
-1. **Activate the virtual environment:**
-
-   ```powershell
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-2. **Install the package in editable mode:**
-
-   ```powershell
-   pip install -e .
-   ```
-
-3. **Configure your environment file:**
-
-   ```powershell
-   cp .env.example .env
-   # Edit .env with your REDCap credentials
-   ```
-
-4. **Run the complete upload process:**
-
-   ```powershell
-   # Complete end-to-end process (RECOMMENDED)
-   udsv4-ru run --initials JT
-   
-   # Specify custom upload directory
-   udsv4-ru run --initials JT --upload-dir ./data/json_files
-   
-   # Force upload even if data appears already uploaded
-   udsv4-ru run --initials JT --force
-   
-   # Get help
-   udsv4-ru --help
-   ```
-
 ## Features
 
 - **Complete End-to-End Process**: Fetches current REDCap data for backup, uploads new QC Status data, and saves comprehensive results
@@ -71,34 +32,131 @@ A comprehensive tool for uploading QC Status and Query Resolution data to REDCap
 
 ## Installation
 
-1. Clone the repository:
+### Step 1: Install Poetry  
 
-   ```bash
-   git clone <repository-url>
-   cd udsv4-redcap-qc-uploader
+**Windows (PowerShell)** — run the official installer script:
+
+```powershell
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+```
+
+---
+
+### Step 2: Where Poetry is Installed  
+
+- Core installation (virtual environment):  
+  `%AppData%\pypoetry\venv`
+
+- Shim executable (used on PATH):  
+  `%AppData%\Python\Scripts\poetry.exe`
+
+The shim is what allows you to type `poetry` anywhere in the terminal.
+
+---
+
+### Step 3: Verify Installation  
+
+```powershell
+poetry --version
+where.exe poetry
+```
+
+Or browse to the folder:
+
+```powershell
+cd $env:APPDATA\Python\Scripts
+dir poetry.exe
+```
+
+---
+
+### Step 4: Add Poetry to PATH (if not already available)
+
+**Option A — PowerShell**
+
+```powershell
+$poetryPath = Join-Path $env:APPDATA 'Python\Scripts'
+[Environment]::SetEnvironmentVariable(
+  'Path',
+  [Environment]::GetEnvironmentVariable('Path','User') + ';' + $poetryPath,
+  'User'
+)
+```
+
+- Close and reopen your terminal (or VS Code).  
+- Restart your computer if necessary.
+
+**Option B — Manual (Windows UI)**
+
+1. Press **Start** → type *Environment Variables* → open **Edit the system environment variables**  
+2. Click **Environment Variables…**  
+3. Under **User variables**, select `Path` → **Edit…**  
+4. Click **New**, then paste:  
+
+   ```
+   %AppData%\Python\Scripts
    ```
 
-2. Install the package and dependencies:
+5. OK → OK to save  
+6. Close and reopen your terminal (or VS Code)
+7. May require a system restart if not udpated immediately
 
-   ```bash
-   pip install -e .
-   ```
+---
 
-3. Create environment file:
+### Step 5: Reinstall or Uninstall if Needed  
 
-   ```bash
-   cp .env.example .env
-   ```
+To uninstall Poetry:
 
-4. Configure your `.env` file with REDCap credentials:
+```powershell
+python -m poetry self uninstall
+```
 
-   ```env
-   REDCAP_API_URL=https://your-redcap-instance.com/api/
-   REDCAP_API_TOKEN=your_api_token_here
-   REDCAP_PROJECT_ID=your_project_id
-   UPLOAD_READY_PATH=./data/upload_ready
-   BACKUP_LOG_PATH=./backups
-   ```
+*(or manually delete `%AppData%\pypoetry` and `%AppData%\Python\Scripts\poetry.exe` if broken)*
+
+Reinstall with the installer script again if necessary.
+
+---
+
+### Linux / macOS  
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+```
+
+### Step 2: Clone and Setup Project
+
+```bash
+# Clone the repository
+git clone https://github.com/johnatorres226/step1-nacc-validator.git
+cd step1-nacc-validator
+
+# Install dependencies (creates virtual environment automatically)
+poetry install
+
+# Verify installation
+poetry run udsv4-qc --help
+```
+
+### Step 3: Environment Configuration
+
+Create a `.env` file in the project root, and refer to `.env.example` for required variables.
+
+### Step 4: Create Output and Log Directory
+
+```bash
+mkdir output
+mkdir logs
+```
+
+### Step 5: Verify Setup
+
+```bash
+# Check configuration
+poetry run udsv4-ru config
+
+# Test CLI functionality
+poetry run udsv4-ru --version
+
 
 ## Usage
 
@@ -108,19 +166,19 @@ The tool provides a simplified CLI with the `udsv4-ru` command that performs a c
 
 ```bash
 # Basic usage - processes latest QC Status Report from default directory
-udsv4-ru run --initials JT
+poetry run udsv4-ru  --initials TEXT
 
 # Specify custom upload directory
-udsv4-ru run --initials JT --upload-dir ./data/json_files
+poetry run udsv4-ru --initials TEXT --upload-dir ./data/json_files
 
 # Specify custom output directory
-udsv4-ru run --initials JT --output-dir ./exports
+poetry run udsv4-ru --initials TEXT --output-dir ./exports
 
 # Force upload even if data appears already uploaded
-udsv4-ru run --initials JT --force
+poetry run udsv4-ru --initials TEXT --force
 
 # Combine options
-udsv4-ru run --initials JT --upload-dir ./data --output-dir ./exports --force
+poetry run udsv4-ru --initials TEXT --upload-dir ./data --output-dir ./exports --force
 ```
 
 ### The Complete Process
@@ -196,12 +254,12 @@ The system uses the `qc_last_run` field to determine if data has already been up
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REDCAP_API_URL` | REDCap API endpoint | Required |
-| `REDCAP_API_TOKEN` | REDCap API token | Required |
-| `UPLOAD_READY_PATH` | Path to JSON files for upload | `./data` |
-| `BACKUP_LOG_PATH` | Path for backup logs | `./backups` |
+| Variable              | Description                   | Default       |
+|-----------------------|-------------------------------|---------------|
+| `REDCAP_API_URL`      | REDCap API endpoint           | Required      |
+| `REDCAP_API_TOKEN`    | REDCap API token              | Required      |
+| `UPLOAD_READY_PATH`   | Path to JSON files for upload | `./data`      |
+| `BACKUP_LOG_PATH`     | Path for backup logs          | `./backups`   |
 
 ## Testing
 

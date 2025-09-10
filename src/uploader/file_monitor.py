@@ -1,13 +1,12 @@
 """File monitoring and change detection functionality."""
 
-import os
-import json
 import hashlib
+import json
 import logging
-from pathlib import Path
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass, asdict
+from pathlib import Path
+from typing import Any, Dict, List
 
 
 @dataclass

@@ -1,30 +1,28 @@
 """Command Line Interface for UDSv4 REDCap QC Uploader."""
 
-import os
-import sys
 import json
-import click
 import logging
+import os
+import re
+import sys
 from datetime import datetime
+from datetime import datetime as dt
 from pathlib import Path
 from typing import Optional
+
+import click
+
+from src.config.redcap_config import REDCapConfig
+from src.config.settings import Settings
+from src.uploader.fetcher import REDCapFetcher
+from src.uploader.uploader import QCDataUploader
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config.redcap_config import REDCapConfig
-from src.config.settings import Settings
-
-"""
-Cli Commands Overview:
-- run: Complete end-to-end process to upload QC Status Report data to REDCap
-
-"""
-
-import re
-from datetime import datetime as dt
-
+# Version from pyproject.toml
+__version__ = "0.1.0"
 
 def find_latest_qc_status_file(upload_path: Path) -> Optional[Path]:
     """
@@ -103,8 +101,17 @@ def setup_logging(initials: str) -> logging.Logger:
 
 
 @click.group(name='udsv4-ru')
+@click.version_option(version=__version__, prog_name='udsv4-ru')
 def cli():
-    """UDSv4 REDCap Uploader - A tool for uploading QC Status data to REDCap."""
+    """UDSv4 REDCap Uploader - A tool for uploading QC Status data to REDCap.
+    
+    This tool helps you upload QC Status Report data to REDCap with 
+    comprehensive audit logging and backup capabilities.
+    
+    Commands:
+      upload    Upload QC Status Report data to REDCap
+      config    Show current configuration settings
+    """
     pass
 
 
@@ -117,15 +124,19 @@ def cli():
               help='Directory to save upload results and logs')
 @click.option('--force', is_flag=True, default=False,
               help='Force upload even if data appears to be already uploaded')
-def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], force: bool):
+def upload(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], force: bool):
     """
-    Run the complete QC Status Report upload process.
+    Upload QC Status Report data to REDCap.
     
     This command performs a complete end-to-end process:
     1. Fetches current data from REDCap for backup
     2. Finds the latest QC Status Report file in upload directory 
     3. Uploads the data to REDCap with audit trail
     4. Saves all results and logs to output directory
+    
+    Examples:
+        udsv4-ru upload -i JT
+        udsv4-ru upload -i JT -u ./my_data -o ./my_output --force
     """
     logger = setup_logging(initials)
     logger.info(f"Starting UDSv4 REDCap upload process (User: {initials})")
@@ -134,11 +145,7 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
         # Initialize components
         config = REDCapConfig.from_env()
         settings = Settings.from_env()
-        
-        # Import the uploader here to avoid circular imports
-        from src.uploader.uploader import QCDataUploader
-        from src.uploader.fetcher import REDCapFetcher
-        
+
         # Initialize uploader and fetcher
         uploader = QCDataUploader(config, settings, logger)
         fetcher = REDCapFetcher(config, logger)
@@ -166,7 +173,7 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
         
         # Step 2: Save fetched data to output directory
         # Create fetch subdirectory (rename to Preupload)
-        fetch_dir = output_directory / f"Preupload"
+        fetch_dir = output_directory / "Preupload"
         
         save_result = fetcher.save_fetched_data_to_output(
             current_data_result, 
@@ -227,7 +234,7 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
         logger.info("Step 5: Uploading data to REDCap...")
 
         # Create upload subdirectory (rename to Upload)
-        upload_results_dir = output_directory / f"Upload"
+        upload_results_dir = output_directory / "Upload"
 
         upload_result = uploader.upload_qc_status_data(
             specific_file=latest_file,
@@ -238,7 +245,7 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
         )
 
         if upload_result['success']:
-            logger.info(f"Upload completed successfully!")
+            logger.info("Upload completed successfully!")
             logger.info(f"Records processed: {upload_result.get('records_processed', 0)}")
 
             # Create comprehensive summary log
@@ -276,6 +283,28 @@ def run(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], f
     except Exception as e:
         logger.error(f"Upload process failed: {str(e)}")
         raise click.ClickException(str(e))
+
+
+@cli.command()
+def config():
+    """Show current configuration settings.
+    
+    Displays essential configuration and connection status.
+    """
+    try:
+        # Load configurations
+        settings = Settings.from_env()
+        redcap_config = REDCapConfig.from_env()
+        
+        click.echo("=== UDSv4 REDCap Uploader Configuration ===")
+        click.echo(f"Version: {__version__}")
+        click.echo(f"REDCap URL: {redcap_config.api_url}")
+        click.echo(f"API Token: {'✓ Set' if redcap_config.api_token else '✗ Not Set'}")
+        click.echo(f"Upload Path: {settings.UPLOAD_READY_PATH}")
+        click.echo(f"Output Path: {settings.OUTPUT_DIR}")
+        
+    except Exception as e:
+        click.echo(f"Error: {str(e)}", err=True)
 
 
 if __name__ == '__main__':

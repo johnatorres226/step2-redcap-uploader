@@ -1,0 +1,15 @@
+/*
+  This is a mock sample of the Step 1 QC JSON Status Report
+*/
+
+[
+  {
+    "ptid": "NM_00001X",
+    "redcap_event_name": "udsv4_ivp_1_arm_1",
+    "qc_status_complete": "0",
+    "qc_run_by": "JT",
+    "qc_last_run": "2025-07-21",
+    "qc_status": "TEST UPLOAD",
+    "quality_control_check_complete": "0"
+  }
+]

@@ -1,6 +1,6 @@
 """Configuration package initialization."""
 
-from .settings import Settings
 from .redcap_config import REDCapConfig
+from .settings import Settings
 
 __all__ = ["Settings", "REDCapConfig"]

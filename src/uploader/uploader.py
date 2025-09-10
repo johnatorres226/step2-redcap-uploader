@@ -2,18 +2,19 @@
 
 import json
 import logging
-import pandas as pd
-import requests
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from .change_tracker import ChangeTracker, ChangeSet
-from .fetcher import REDCapFetcher
-from .data_processor import DataProcessor
-from .file_monitor import FileMonitor
-from ..config.settings import Settings
+import pandas as pd
+import requests
+
 from ..config.redcap_config import REDCapConfig
+from ..config.settings import Settings
+from .change_tracker import ChangeTracker
+from .data_processor import DataProcessor
+from .fetcher import REDCapFetcher
+from .file_monitor import FileMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -623,7 +624,7 @@ class QCDataUploader:
                     'total_sent': len(data)
                 }
                 
-            except (json.JSONDecodeError, ValueError) as e:
+            except (json.JSONDecodeError, ValueError):
                 # Handle non-JSON response
                 response_text = response.text
                 self.logger.warning(f"Non-JSON response from REDCap: {response_text}")

@@ -1,9 +1,10 @@
 """Application settings and configuration."""
 
 import os
-from pathlib import Path
-from typing import List, Optional
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List
+
 from dotenv import load_dotenv
 
 # Load environment variables

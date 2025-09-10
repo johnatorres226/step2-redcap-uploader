@@ -2,7 +2,8 @@
 
 import os
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional
+
 from dotenv import load_dotenv
 
 # Load environment variables

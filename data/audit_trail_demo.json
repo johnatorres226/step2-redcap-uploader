@@ -1,0 +1,16 @@
+/*
+  This is a demo audit trail JSON file for REDCap QC uploader.
+  Contains sample data for quality control status tracking.
+*/
+
+[
+  {
+    "ptid": "DEMO_001",
+    "redcap_event_name": "udsv4_ivp_1_arm_1",
+    "qc_status_complete": "0",
+    "qc_run_by": "TEST",
+    "qc_last_run": "2025-08-12",
+    "qc_status": "AUDIT_TRAIL_DEMO",
+    "quality_control_check_complete": "0"
+  }
+]

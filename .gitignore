@@ -15,14 +15,12 @@ env.bak/
 output/
 logs/
 test_export/
-data/
 backups/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
 # VS Code settings
-.vscode/
 WORKPLACE.code-workspace
 
 # MacOS
@@ -44,3 +42,6 @@ build/
 *.tmp
 *.bak
 
+# cache
+.ruff_cache/
+.pytest_cache/
