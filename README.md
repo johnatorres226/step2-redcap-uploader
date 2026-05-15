@@ -123,9 +123,10 @@ The default behavior is to upload QC Status Report data to REDCap.
 Options:
 
 - `-i, --initials` (required): User initials for logging and audit purposes
-- `-u, --upload-dir`: Directory containing QC Status Report JSON files (defaults to UPLOAD_READY_PATH)
+- `-u, --upload-dir`: Directory containing QC Status Report JSON files (defaults to `UPLOAD_READY_PATH`)
 - `-o, --output-dir`: Custom directory for saving results (auto-generated if not specified)
 - `--force`: Force upload even if data appears to be already uploaded
+- `--test`: Label the output directory with a `TEST_` prefix without changing upload behavior
 
 ### Subcommands
 
@@ -133,32 +134,35 @@ Options:
 
 Displays essential configuration and connection status without requiring any options.
 
-The remaining sections of the README (Features, Output Structure, Change Tracking, Environment Variables, Testing, etc.) remain unchanged and document the behavior of the tool.
-
 ## Output Structure
 
-Each upload process creates timestamped output directories with comprehensive results:
+Each run creates a timestamped directory under `output/` and a telemetry log under `telemetry/`:
 
 ```text
 output/
-└── REDCAP_CompleteUpload_DDMMMYYYY_HHMMSS/
-    ├── UPLOAD_SUMMARY.json                    # Complete process summary
-    ├── REDCAP_DataFetcher_DDMMMYYYY/
-    │   ├── REDCAP_PriorToUpload_BackupFile_DDMMMYYYY_HHMMSS.json
-    │   └── REDCAP_QCStatus_TargetedBackup_DDMMMYYYY_HHMMSS.json
-    └── REDCAP_Uploader_NewQCResults_DDMMMYYYY/
-        ├── DataUploaded_DDMMMYYYY_HHMMSS.json
-        ├── DataUploaded_Receipt_DDMMMYYYY_HHMMSS.json
-        └── LOG_FILE.txt
+└── REDCAP_Uploader_DDMMMYYYY_HHMMSS/        # e.g. REDCAP_Uploader_15May2026_142305
+    └── Upload/
+        ├── DataUploaded_DDMMMYYYY_HHMMSS.json          # Records sent to REDCap (with audit fields)
+        └── DataUploaded_Recipt_DDMMMYYYY_HHMMSS.json   # Upload receipt with API response metadata
+
+telemetry/                                    # Configurable via TELEMETRY_PATH env var
+└── RU_TELEMETRY_LOG_HHMMSS.json             # Structured run telemetry (timing, status, record count)
+
+logs/
+└── comprehensive_upload_log.json             # Appended after every successful upload
+
+backups/
+└── comprehensive_upload_log_backup_*.json    # Rotating backup of the upload log
 ```
+
+With `--test`, the output directory is prefixed `TEST_REDCAP_Uploader_DDMMMYYYY_HHMMSS/`.
 
 ### File Naming Conventions
 
-- **BU Suffix**: Files ending with `_BU` contain data from **Before Upload** (backup purposes)
-- **Timestamps**: Use format `DDMMMYYYY_HHMMSS` (e.g., `21Jul2025_141502`)
-- **Targeted Files**: Contain only QC-related fields instead of complete records
-- **Receipt Files**: Document exactly what was uploaded to REDCap
-- **Summary Files**: Provide complete overview of the entire process
+- **Timestamps**: Use format `DDMMMYYYY_HHMMSS` (e.g., `15May2026_142305`)
+- **`DataUploaded_*`**: The exact records imported to REDCap, including injected audit trail fields
+- **`DataUploaded_Recipt_*`**: Upload receipt — records the API response, record count, source file, and user initials (note: `Recipt` spelling is preserved from the original implementation)
+- **`RU_TELEMETRY_LOG_*`**: Structured JSON with run metadata: start/end time, duration, status, source file, and record count
 
 ## Key Features
 
@@ -189,16 +193,40 @@ pytest tests/
 
 ## Configuration Details
 
-### Settings (config/settings.py)
+### Environment Variables
 
-- File monitoring settings
-- Data validation rules
-- Upload batch sizes
-- Retry configurations
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `REDCAP_API_URL` | ✓ | — | REDCap instance API endpoint |
+| `REDCAP_API_TOKEN` | ✓ | — | Project-specific API token |
+| `REDCAP_PROJECT_ID` | | — | Optional project ID |
+| `REDCAP_TIMEOUT` | | `30` | API request timeout (seconds) |
+| `REDCAP_MAX_RETRIES` | | `3` | API retry attempts |
+| `REDCAP_RETRY_DELAY` | | `1.0` | Delay between retries (seconds) |
+| `UPLOAD_READY_PATH` | | `./data` | Directory scanned for QC Status JSON files |
+| `BACKUP_LOG_PATH` | | `./backups` | Directory for upload log backups |
+| `LOG_LEVEL` | | `INFO` | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `LOG_PATH` | | `./logs` | Directory for persistent log files |
+| `OUTPUT_DIR` | | `./output` | Root directory for per-run output |
+| `DATA_DIR` | | `./data` | Project data directory |
+| `TELEMETRY_PATH` | | `./telemetry` | Directory for telemetry JSON logs |
+| `BATCH_SIZE` | | `100` | Upload batch size |
+| `VALIDATE_DATA` | | `true` | Enable pre-upload data validation |
+| `CHECK_FILE_CHANGES` | | `true` | Use file hash/timestamp change detection |
+
+### Settings (`src/config/settings.py`)
+
+Full runtime configuration with environment-driven overrides. Use `Settings.from_env()` to load. See [docs/config.md](docs/config.md) for details.
 
 ## Audit Trail
 
-All changes are logged in the `logs/` directory with the following structure.
+All changes are recorded in `logs/`:
+
+- `comprehensive_upload_log.json` — appended after every upload; contains source file, record count, user, timestamp, and upload type
+- `backups/comprehensive_upload_log_backup_*.json` — rotating backup of the upload history
+- `audit_*.json` / `summary_*.txt` — per-operation field-level change sets written by `ChangeTracker`
+
+See [docs/uploader.md](docs/uploader.md) for the full schema of change tracking artifacts.
 
 ## Safety Features
 
