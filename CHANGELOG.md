@@ -5,6 +5,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-15
+
+### Added
+
+- **Logging Module** (`src/logging/`): New dedicated logging infrastructure with colored terminal output using UNM brand ANSI palette (Turquoise/INFO, Cherry/ERROR, etc.), icon-prefixed log levels, and auto-detection of terminal color support
+- **Telemetry Output**: CLI now writes a structured `RU_TELEMETRY_LOG_<HHMMSS>.json` file to a configurable `TELEMETRY_PATH` (defaults to `./telemetry/`) after each successful run
+- **`--test` Flag**: CLI accepts `--test` to label the output directory with a `TEST_` prefix without changing upload behavior, enabling safe dry-label runs
+- **CI/CD Pipeline** (`.github/workflows/ci.yml`): Comprehensive pipeline covering PR-to-main changelog and version enforcement, Ruff lint and format checks, mypy type checking, and Poetry build verification with artifact upload
+- **`_get_record_identity()`** method on `QCDataUploader`: builds a stable four-tuple key `(record_id, event_name, repeat_instrument, repeat_instance)` for reliable cross-event deduplication and change tracking
+- **Multi-key JSON loading**: uploader now resolves records from `data`, `participant_status`, or `records` keys, or treats the root dict as a single record when none of those keys are present
+
+### Changed
+
+- **CLI refactor**: Removed the `run` subcommand — the default invocation is now `udsv4-ru --initials <INITIALS>` (breaking change for callers using `udsv4-ru run`)
+- **`redcap_event_instance` alias**: `uploader.py` and `data_processor.py` now automatically remap incoming `redcap_event_instance` values to `redcap_repeat_instance` before upload, matching the REDCap API expectation
+- **Logging imports**: All modules (`uploader`, `fetcher`, `data_processor`, `change_tracker`, `file_monitor`, `cli`) now obtain loggers via `src.logging.logging_config.get_logger()` instead of bare `logging.getLogger()`
+- **`docs/cofig.md` renamed** to `docs/config.md` (typo fix); all internal references updated
+
+### Removed
+
+- **`.github/workflows/build.yml`**: Replaced by the new comprehensive `ci.yml` workflow
+
 ## [0.1.0] - 2025-09-11
 
 ### Added

@@ -362,3 +362,32 @@ UDS002,UDS002,More chars: ñüéî"""
         
         assert len(df) == 2
         assert 'Special chars' in df.iloc[0]['notes']
+
+    def test_add_audit_trail_uses_instance_specific_lookup(self):
+        """Test audit trails match current REDCap data by event instance."""
+        processor = DataProcessor()
+
+        current_data = [
+            {
+                'ptid': 'UDS777',
+                'redcap_event_name': 'followup_arm_1',
+                'redcap_repeat_instance': '1',
+                'qc_results': 'Instance 1 history'
+            }
+        ]
+
+        upload_data = [
+            {
+                'ptid': 'UDS777',
+                'redcap_event_name': 'followup_arm_1',
+                'redcap_repeat_instance': '2',
+                'qc_status': '1',
+                'qc_run_by': 'JT'
+            }
+        ]
+
+        updated = processor.add_audit_trail(upload_data, current_data, 'JT')
+
+        assert len(updated) == 1
+        assert 'Instance 1 history' not in updated[0]['qc_results']
+        assert 'JT' in updated[0]['qc_results']

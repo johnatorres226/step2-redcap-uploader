@@ -1,6 +1,5 @@
 """Data processing and validation functionality."""
 
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -8,7 +7,9 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from ..logging.logging_config import get_logger
+
+logger = get_logger("data_processor")
 
 
 class DataProcessor:
@@ -345,10 +346,22 @@ class DataProcessor:
         Returns:
             List of records with updated qc_results field
         """
+        def _record_identity(record: Dict[str, Any]) -> tuple[str, str, str, str]:
+            record_id = str(record.get('ptid') or record.get('record_id') or '')
+            event_name = str(record.get('redcap_event_name') or '')
+            repeat_instrument = str(record.get('redcap_repeat_instrument') or '')
+            repeat_instance = str(
+                record.get('redcap_repeat_instance')
+                or record.get('redcap_event_instance')
+                or ''
+            )
+
+            return (record_id, event_name, repeat_instrument, repeat_instance)
+
         # Create lookup for current REDCap data
         current_lookup = {}
         for record in current_redcap_data:
-            key = (record.get('ptid', ''), record.get('redcap_event_name', ''))
+            key = _record_identity(record)
             current_lookup[key] = record
         
         # Generate timestamp for audit trail
@@ -361,7 +374,7 @@ class DataProcessor:
             updated_record = record.copy()
             
             # Get the key for this record
-            key = (record.get('ptid', ''), record.get('redcap_event_name', ''))
+            key = _record_identity(record)
             
             # Get current qc_results value from REDCap (if exists)
             current_qc_results = ''

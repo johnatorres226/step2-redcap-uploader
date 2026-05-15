@@ -11,7 +11,8 @@ from datetime import datetime
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cli.cli import find_latest_qc_status_file, create_output_directory, setup_logging
+from src.cli.cli import find_latest_qc_status_file, create_output_directory
+from src.logging.logging_config import setup_logging, get_logger
 
 
 class TestFindLatestQCStatusFile:
@@ -213,16 +214,17 @@ class TestSetupLogging:
     
     def test_setup_logging_basic(self):
         """Test basic logging setup."""
-        logger = setup_logging("JT")
+        setup_logging(log_level="INFO", console_output=True)
+        logger = get_logger("test")
         
         assert logger is not None
-        assert logger.name == "udsv4_redcap_uploader"
-        assert logger.level == 20  # INFO level
+        assert logger.name == "uploader.test"
         assert len(logger.handlers) > 0
     
     def test_setup_logging_handler_configuration(self):
         """Test that logging handlers are configured correctly."""
-        logger = setup_logging("TEST")
+        setup_logging(log_level="DEBUG", console_output=True)
+        logger = get_logger("test_handler")
         
         # Check that at least one handler is configured
         assert len(logger.handlers) > 0

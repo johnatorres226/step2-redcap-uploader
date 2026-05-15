@@ -23,8 +23,8 @@ The uploader implements a safe, auditable, end-to-end workflow with the followin
    - Place QC Status JSON files in the upload-ready directory (default: `./data` or configured `UPLOAD_READY_PATH`).
 
 2. Run the end-to-end command
-   - Use the CLI: `udsv4-ru run --initials <INITIALS>`
-   - Options: `--upload-dir`, `--output-dir`, `--force` (see CLI help for details)
+   - Use the CLI: `udsv4-ru --initials <INITIALS>`
+   - Options: `--upload-dir`, `--output-dir`, `--force`, `--test` (see CLI help for details)
 
 3. Fetch current REDCap data for backup
    - The fetcher (`REDCapFetcher`) creates a full project backup and targeted QC backups.  The backup files are stored in a timestamped output directory.
@@ -60,7 +60,7 @@ Operational guidance:
 
 ## References
 
-- Configuration: `docs/cofig.md` (documents `src/config/settings.py` and `src/config/redcap_config.py`)
+- Configuration: `docs/config.md` (documents `src/config/settings.py` and `src/config/redcap_config.py`)
 - Uploader internals: `docs/uploader.md` (describes uploader classes, fetcher, data processor, change tracker, file monitor)
 
 

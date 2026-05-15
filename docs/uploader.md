@@ -7,10 +7,11 @@ This document describes the core uploader modules, functions, outputs, process f
 - `data_processor.DataProcessor`
 - `change_tracker.ChangeTracker`
 - `file_monitor.FileMonitor`
+- `logging.logging_config` (shared logging infrastructure)
 
 ## High-level process flow
 
-1. CLI triggers `QCDataUploader.upload_qc_status_data()` via `udsv4-ru run`.
+1. CLI triggers `QCDataUploader.upload_qc_status_data()` via `udsv4-ru --initials <INITIALS>`.
 2. Uploader locates the latest JSON files in the upload directory.
 3. Fetcher obtains current REDCap data (complete backup and targeted QC fields).
 4. DataProcessor validates and standardizes data, converting to REDCap format.
@@ -44,7 +45,8 @@ Key methods and behavior:
   - `_find_latest_files(directory, pattern)` — lists files sorted by modification time; used to detect candidate JSON files.
   - `_validate_qc_data(data)` — validates required fields (`ptid`, `qc_last_run`) and reports validation errors.
   - `_filter_new_records(new_data, current_data)` — implements `qc_last_run` discriminatory logic (only upload when changed).
-  - `_upload_to_redcap(data)` — prepares request payload and handles API response parsing and error mapping.
+  - `_get_record_identity(record)` — builds a stable four-tuple key `(record_id, event_name, repeat_instrument, repeat_instance)` used for change tracking and deduplication across REDCap events; aliases `redcap_event_instance` to `redcap_repeat_instance` automatically.
+  - `_upload_to_redcap(data)` — prepares request payload and handles API response parsing and error mapping; supports multi-key JSON structures (`data`, `participant_status`, `records`).
 
 Outputs and files created:
 
@@ -183,12 +185,27 @@ For failed runs:
 - Check the run-level `LOG_FILE.txt`, `comprehensive_upload_log.json`, and any `DataUploaded_Recipt_*` or `FETCH_SUMMARY_*` files.
 - Use `change_tracking.json` to inspect partial changes and plan rollback if necessary.
 
+## `logging_config` (src/logging/logging_config.py)
+
+Responsibilities:
+
+- Provide a shared `get_logger(name)` factory used by all modules instead of bare `logging.getLogger`.
+- Emit colored, icon-prefixed terminal output using UNM brand ANSI colors (Turquoise for INFO, Cherry for ERROR, etc.).
+- Auto-detect terminal color support; degrades gracefully when output is redirected.
+- Expose `setup_logging(log_level, console_output)` for CLI bootstrap.
+
+Key classes:
+
+- `ColoredFormatter` — attaches ANSI color codes and level icons to log records; respects `NO_COLOR` env var and non-TTY redirects.
+
+Usage in modules:
+
+```python
+from src.logging.logging_config import get_logger
+logger = get_logger("module_name")
+```
+
 ## Operational tips
 
 - For debugging API errors, set `LOG_LEVEL=DEBUG` and inspect the `LOG_FILE.txt` in the run output directory.
 - Automate regular `COMPLETE_BACKUP_*` exports (via scheduled runs) to maintain recovery points.
-
-
----
-
-If you want, I can also extract sample JSON structures for receipts, fetch results, and change sets to include as appendices in this doc.

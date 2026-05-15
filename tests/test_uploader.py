@@ -18,11 +18,11 @@ class TestQCDataUploader:
     
     def test_init(self, mock_redcap_config, test_settings, test_logger):
         """Test QCDataUploader initialization."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         assert uploader.config == mock_redcap_config
         assert uploader.settings == test_settings
-        assert uploader.logger == test_logger
+        assert uploader.logger is not None
         assert uploader.session is not None
         assert uploader.fetcher is not None
         assert uploader.data_processor is not None
@@ -34,7 +34,7 @@ class TestQCDataUploader:
     def test_upload_qc_status_data_success(self, mock_fetch, mock_upload, temp_dir, sample_qc_file, 
                                           mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test successful QC status data upload."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock fetch response
         mock_fetch.return_value = {
@@ -66,7 +66,7 @@ class TestQCDataUploader:
     def test_upload_qc_status_data_dry_run(self, mock_fetch, temp_dir, sample_qc_file,
                                           mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test QC status data upload in dry run mode."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock fetch response
         mock_fetch.return_value = {
@@ -89,7 +89,7 @@ class TestQCDataUploader:
     
     def test_upload_qc_status_data_no_files(self, temp_dir, mock_redcap_config, test_settings, test_logger):
         """Test upload when no files are found."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         empty_dir = temp_dir / "empty"
         empty_dir.mkdir()
@@ -109,7 +109,7 @@ class TestQCDataUploader:
     def test_upload_qc_status_data_fetch_failure(self, mock_fetch, temp_dir, sample_qc_file,
                                                  mock_redcap_config, test_settings, test_logger):
         """Test upload when fetching current data fails."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock fetch failure
         mock_fetch.return_value = {
@@ -131,7 +131,7 @@ class TestQCDataUploader:
     @patch('requests.Session.post')
     def test_upload_to_redcap_success(self, mock_post, mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test successful upload to REDCap API."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock successful API response
         mock_response = Mock()
@@ -149,7 +149,7 @@ class TestQCDataUploader:
     @patch('requests.Session.post')
     def test_upload_to_redcap_api_error(self, mock_post, mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test upload to REDCap with API error."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock API error
         mock_post.side_effect = requests.RequestException("Upload failed")
@@ -162,7 +162,7 @@ class TestQCDataUploader:
     
     def test_load_and_validate_upload_data(self, temp_dir, sample_qc_file, mock_redcap_config, test_settings, test_logger):
         """Test loading and validating upload data."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         result = uploader._load_and_validate_upload_data(temp_dir / "data")
         
@@ -173,7 +173,7 @@ class TestQCDataUploader:
     
     def test_load_and_validate_upload_data_invalid(self, temp_dir, mock_redcap_config, test_settings, test_logger):
         """Test loading invalid upload data."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Create invalid JSON file
         invalid_file = temp_dir / "data" / "QC_Status_Report_invalid.json"
@@ -189,7 +189,7 @@ class TestQCDataUploader:
     @patch('src.uploader.fetcher.REDCapFetcher.fetch_qc_status_data')
     def test_check_for_duplicates(self, mock_fetch, mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test duplicate checking functionality."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock current data with same qc_last_run
         current_data = [
@@ -215,7 +215,7 @@ class TestQCDataUploader:
     
     def test_add_audit_trail(self, mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test adding audit trail to upload data."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         current_data = [
             {
@@ -242,7 +242,7 @@ class TestQCDataUploader:
     
     def test_create_output_files(self, temp_dir, mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test creating output files."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         upload_result = {
             'success': True,
@@ -268,7 +268,7 @@ class TestQCDataUploader:
     
     def test_validate_upload_data_structure(self, mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test validating upload data structure."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Valid data
         result = uploader._validate_upload_data_structure(sample_qc_data)
@@ -285,7 +285,7 @@ class TestQCDataUploader:
     def test_force_upload_mode(self, mock_fetch, mock_upload, temp_dir, sample_qc_file,
                               mock_redcap_config, test_settings, test_logger, sample_qc_data):
         """Test upload with force mode enabled."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Mock current data with same qc_last_run (would normally be duplicate)
         current_data = [
@@ -320,7 +320,7 @@ class TestQCDataUploader:
     
     def test_error_handling_in_upload_process(self, temp_dir, mock_redcap_config, test_settings, test_logger):
         """Test error handling during upload process."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Test with non-existent directory
         non_existent_dir = temp_dir / "does_not_exist"
@@ -337,7 +337,7 @@ class TestQCDataUploader:
     
     def test_output_directory_creation(self, temp_dir, mock_redcap_config, test_settings, test_logger):
         """Test custom output directory creation."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         custom_output_dir = temp_dir / "custom_output"
         
@@ -360,7 +360,7 @@ class TestQCDataUploader:
     
     def test_large_dataset_upload(self, temp_dir, mock_redcap_config, test_settings, test_logger):
         """Test uploading large datasets."""
-        uploader = QCDataUploader(mock_redcap_config, test_settings, test_logger)
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
         
         # Create large dataset
         large_dataset = []
@@ -386,3 +386,55 @@ class TestQCDataUploader:
         
         assert result['valid'] is True
         # Should handle large datasets without issues
+
+    def test_convert_to_redcap_format_maps_event_instance(self, mock_redcap_config, test_settings, test_logger):
+        """Test event-instance alias is mapped to REDCap repeat_instance field."""
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
+
+        payload = [
+            {
+                "ptid": "UDS100",
+                "redcap_event_name": "followup_arm_1",
+                "redcap_event_instance": 2,
+                "qc_status": "1",
+                "qc_last_run": "15JAN2026"
+            }
+        ]
+
+        converted = uploader._convert_to_redcap_format(payload)
+
+        assert converted[0]["redcap_repeat_instance"] == "2"
+        assert "redcap_event_instance" not in converted[0]
+
+    def test_filter_new_records_uses_event_instance_identity(self, mock_redcap_config, test_settings, test_logger):
+        """Test duplicate filtering keeps new event instances for same participant."""
+        uploader = QCDataUploader(mock_redcap_config, test_settings)
+
+        current_data = [
+            {
+                "ptid": "UDS100",
+                "redcap_event_name": "followup_arm_1",
+                "redcap_repeat_instance": "1",
+                "qc_last_run": "15JAN2026"
+            }
+        ]
+
+        new_data = [
+            {
+                "ptid": "UDS100",
+                "redcap_event_name": "followup_arm_1",
+                "redcap_repeat_instance": "1",
+                "qc_last_run": "15JAN2026"
+            },
+            {
+                "ptid": "UDS100",
+                "redcap_event_name": "followup_arm_1",
+                "redcap_repeat_instance": "2",
+                "qc_last_run": "15JAN2026"
+            }
+        ]
+
+        filtered = uploader._filter_new_records(new_data, current_data)
+
+        assert len(filtered) == 1
+        assert filtered[0]["redcap_repeat_instance"] == "2"

@@ -18,10 +18,10 @@ class TestREDCapFetcher:
     
     def test_init(self, mock_redcap_config, test_logger):
         """Test REDCapFetcher initialization."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         assert fetcher.config == mock_redcap_config
-        assert fetcher.logger == test_logger
+        assert fetcher.logger is not None
         assert fetcher.session is not None
         assert isinstance(fetcher.qc_status_fields, list)
         assert 'ptid' in fetcher.qc_status_fields
@@ -29,7 +29,7 @@ class TestREDCapFetcher:
     
     def test_analyze_upload_data_valid_file(self, temp_dir, sample_qc_file, mock_redcap_config, test_logger):
         """Test analyzing valid upload data."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         result = fetcher.analyze_upload_data(temp_dir / "data")
         
@@ -41,7 +41,7 @@ class TestREDCapFetcher:
     
     def test_analyze_upload_data_no_files(self, temp_dir, mock_redcap_config, test_logger):
         """Test analyzing upload data when no files present."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         empty_dir = temp_dir / "empty"
         empty_dir.mkdir()
@@ -53,7 +53,7 @@ class TestREDCapFetcher:
     
     def test_analyze_upload_data_invalid_json(self, temp_dir, mock_redcap_config, test_logger):
         """Test analyzing upload data with invalid JSON."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Create invalid JSON file
         invalid_file = temp_dir / "data" / "invalid.json"
@@ -69,7 +69,7 @@ class TestREDCapFetcher:
     @patch('requests.Session.post')
     def test_fetch_qc_status_data_success(self, mock_post, mock_redcap_config, test_logger, sample_qc_data):
         """Test successful QC status data fetching."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Mock successful API response
         mock_response = Mock()
@@ -88,7 +88,7 @@ class TestREDCapFetcher:
     @patch('requests.Session.post')
     def test_fetch_qc_status_data_api_error(self, mock_post, mock_redcap_config, test_logger):
         """Test QC status data fetching with API error."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Mock API error
         mock_post.side_effect = requests.RequestException("API Error")
@@ -102,7 +102,7 @@ class TestREDCapFetcher:
     @patch('requests.Session.post')
     def test_fetch_qc_status_data_invalid_response(self, mock_post, mock_redcap_config, test_logger):
         """Test QC status data fetching with invalid response."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Mock invalid response
         mock_response = Mock()
@@ -120,7 +120,7 @@ class TestREDCapFetcher:
     @patch('requests.Session.post')
     def test_fetch_qc_status_form_data(self, mock_post, mock_redcap_config, test_logger, sample_qc_data):
         """Test fetching QC status form data."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Mock successful API response
         mock_response = Mock()
@@ -144,7 +144,7 @@ class TestREDCapFetcher:
     
     def test_save_fetched_data_to_output(self, temp_dir, mock_redcap_config, test_logger, sample_qc_data):
         """Test saving fetched data to output directory."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         fetch_result = {
             'success': True,
@@ -172,7 +172,7 @@ class TestREDCapFetcher:
     
     def test_save_fetched_data_failed_fetch(self, temp_dir, mock_redcap_config, test_logger):
         """Test saving fetched data when fetch failed."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         fetch_result = {
             'success': False,
@@ -191,7 +191,7 @@ class TestREDCapFetcher:
     
     def test_save_backup_files_to_directory(self, temp_dir, mock_redcap_config, test_logger, sample_qc_data):
         """Test saving backup files to directory."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         fetch_result = {
             'success': True,
@@ -213,7 +213,7 @@ class TestREDCapFetcher:
     
     def test_filter_qc_status_subset(self, mock_redcap_config, test_logger, sample_qc_data):
         """Test filtering QC status subset."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         upload_data = [
             {"record_id": "UDS001", "redcap_event_name": "baseline_arm_1"},
@@ -227,7 +227,7 @@ class TestREDCapFetcher:
     
     def test_get_unique_record_identifiers(self, mock_redcap_config, test_logger, sample_qc_data):
         """Test getting unique record identifiers."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         identifiers = fetcher._get_unique_record_identifiers(sample_qc_data)
         
@@ -239,7 +239,7 @@ class TestREDCapFetcher:
     
     def test_validate_api_response(self, mock_redcap_config, test_logger):
         """Test API response validation."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Valid response
         valid_response = Mock()
@@ -257,7 +257,7 @@ class TestREDCapFetcher:
     
     def test_prepare_api_request(self, mock_redcap_config, test_logger):
         """Test API request preparation."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         request_data = fetcher._prepare_api_request(
             content='record',
@@ -277,7 +277,7 @@ class TestREDCapFetcher:
     @patch('requests.Session.post')
     def test_fetch_with_retry_logic(self, mock_post, mock_redcap_config, test_logger):
         """Test fetch with retry logic on temporary failures."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # First call fails, second succeeds
         mock_response_fail = Mock()
@@ -298,7 +298,7 @@ class TestREDCapFetcher:
     
     def test_error_handling_malformed_data(self, temp_dir, mock_redcap_config, test_logger):
         """Test error handling with malformed data files."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Create file with malformed data structure
         malformed_file = temp_dir / "data" / "malformed.json"
@@ -319,7 +319,7 @@ class TestREDCapFetcher:
     
     def test_large_dataset_handling(self, temp_dir, mock_redcap_config, test_logger):
         """Test handling of large datasets."""
-        fetcher = REDCapFetcher(mock_redcap_config, test_logger)
+        fetcher = REDCapFetcher(mock_redcap_config)
         
         # Create large dataset
         large_dataset = []

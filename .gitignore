@@ -14,6 +14,7 @@ env.bak/
 # Output, logs, test_exports, data directories
 output/
 logs/
+telemetry/
 test_export/
 backups/
 

@@ -97,28 +97,41 @@ The preferred way to run the CLI is via Poetry. The package exposes the `udsv4-r
 Basic examples:
 
 ```powershell
-# Process the latest QC Status Report from the default upload directory
-poetry run udsv4-ru --initials TEXT
+# Upload the latest QC Status Report from the default upload directory
+poetry run udsv4-ru --initials JT
 
 # Specify a custom upload directory
-poetry run udsv4-ru --initials TEXT --upload-dir ./data/json_files
+poetry run udsv4-ru --initials JT --upload-dir ./data/json_files
 
 # Specify a custom output directory
-poetry run udsv4-ru --initials TEXT --output-dir ./exports
+poetry run udsv4-ru --initials JT --output-dir ./exports
 
 # Force upload even if data appears already uploaded
-poetry run udsv4-ru --initials TEXT --force
+poetry run udsv4-ru --initials JT --force
 
 # Combine options
-poetry run udsv4-ru --initials TEXT --upload-dir ./data --output-dir ./exports --force
+poetry run udsv4-ru --initials JT --upload-dir ./data --output-dir ./exports --force
+
+# View current configuration
+poetry run udsv4-ru config
 ```
 
-Command options
+### Command Options
 
-- `--initials` (required): User initials for logging and audit purposes
-- `--upload-dir`: Directory containing QC Status Report JSON files (defaults to UPLOAD_READY_PATH)
-- `--output-dir`: Custom directory for saving results (auto-generated if not specified)
+The default behavior is to upload QC Status Report data to REDCap.
+
+Options:
+
+- `-i, --initials` (required): User initials for logging and audit purposes
+- `-u, --upload-dir`: Directory containing QC Status Report JSON files (defaults to UPLOAD_READY_PATH)
+- `-o, --output-dir`: Custom directory for saving results (auto-generated if not specified)
 - `--force`: Force upload even if data appears to be already uploaded
+
+### Subcommands
+
+**`config`** - Show current configuration settings
+
+Displays essential configuration and connection status without requiring any options.
 
 The remaining sections of the README (Features, Output Structure, Change Tracking, Environment Variables, Testing, etc.) remain unchanged and document the behavior of the tool.
 

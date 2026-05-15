@@ -2,11 +2,14 @@
 
 import hashlib
 import json
-import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
+
+from ..logging.logging_config import get_logger
+
+logger = get_logger("file_monitor")
 
 
 @dataclass
@@ -32,7 +35,7 @@ class FileInfo:
 class FileMonitor:
     """Monitor files for changes and track processing history."""
     
-    def __init__(self, watch_directory: Path, logger: logging.Logger):
+    def __init__(self, watch_directory: Path):
         self.watch_directory = Path(watch_directory)
         self.logger = logger
         self.tracking_file = self.watch_directory / "file_tracking.json"

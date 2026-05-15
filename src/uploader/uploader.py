@@ -1,7 +1,6 @@
 """Data upload functionality for REDCap."""
 
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -11,28 +10,29 @@ import requests
 
 from ..config.redcap_config import REDCapConfig
 from ..config.settings import Settings
+from ..logging.logging_config import get_logger
 from .change_tracker import ChangeTracker
 from .data_processor import DataProcessor
 from .fetcher import REDCapFetcher
 from .file_monitor import FileMonitor
 
-logger = logging.getLogger(__name__)
+logger = get_logger("uploader")
 
 
 class QCDataUploader:
     """Main uploader class for handling QC Status and Query Resolution uploads."""
     
-    def __init__(self, config: REDCapConfig, settings: Settings, logger: logging.Logger):
+    def __init__(self, config: REDCapConfig, settings: Settings):
         self.config = config
         self.settings = settings
         self.logger = logger
         self.session = requests.Session()
         
         # Initialize components
-        self.fetcher = REDCapFetcher(config, logger)
+        self.fetcher = REDCapFetcher(config)
         self.data_processor = DataProcessor(strict_validation=False)
         self.change_tracker = ChangeTracker(settings.LOGS_DIR)
-        self.file_monitor = FileMonitor(Path(settings.UPLOAD_READY_PATH), logger)
+        self.file_monitor = FileMonitor(Path(settings.UPLOAD_READY_PATH))
     
     def upload_qc_status_data(self, upload_path: Optional[Path] = None, 
                             specific_file: Optional[Path] = None,
@@ -373,8 +373,17 @@ class QCDataUploader:
             # Validate structure
             if isinstance(data, list):
                 records = data
-            elif isinstance(data, dict) and 'data' in data:
-                records = data['data']
+            elif isinstance(data, dict):
+                # Try multiple possible keys for the data array
+                if 'data' in data:
+                    records = data['data']
+                elif 'participant_status' in data:
+                    records = data['participant_status']
+                elif 'records' in data:
+                    records = data['records']
+                else:
+                    # If no known key, treat the dict itself as a single record
+                    records = [data]
             else:
                 records = [data] if data else []
             
@@ -480,11 +489,25 @@ class QCDataUploader:
                 'is_valid': False,
                 'error': str(e)
             }
+
+    def _get_record_identity(self, record: Dict[str, Any]) -> tuple[str, str, str, str]:
+        """Build a stable REDCap identity key including event/repeat context."""
+        record_id = str(record.get('ptid') or record.get('record_id') or '')
+        event_name = str(record.get('redcap_event_name') or '')
+        repeat_instrument = str(record.get('redcap_repeat_instrument') or '')
+        repeat_instance = str(
+            record.get('redcap_repeat_instance')
+            or record.get('redcap_event_instance')
+            or ''
+        )
+
+        return (record_id, event_name, repeat_instrument, repeat_instance)
     
     def _convert_to_redcap_format(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Convert data to REDCap import format."""
         try:
             converted_data = []
+            mapped_event_instances = 0
             
             for record in data:
                 # Ensure all values are strings (REDCap requirement)
@@ -498,9 +521,23 @@ class QCDataUploader:
                         converted_record[key] = '1' if value else '0'
                     else:
                         converted_record[key] = str(value)
+
+                # Support incoming event-instance alias by mapping to REDCap API field.
+                event_instance = converted_record.get('redcap_event_instance', '')
+                repeat_instance = converted_record.get('redcap_repeat_instance', '')
+                if event_instance and not repeat_instance:
+                    converted_record['redcap_repeat_instance'] = event_instance
+                    mapped_event_instances += 1
+
+                # The REDCap API expects redcap_repeat_instance, not redcap_event_instance.
+                converted_record.pop('redcap_event_instance', None)
                 
                 converted_data.append(converted_record)
             
+            if mapped_event_instances:
+                self.logger.info(
+                    f"Mapped {mapped_event_instances} redcap_event_instance values to redcap_repeat_instance"
+                )
             self.logger.info(f"Converted {len(converted_data)} records to REDCap format")
             return converted_data
             
@@ -533,32 +570,44 @@ class QCDataUploader:
     
     def _filter_new_records(self, new_data: List[Dict[str, Any]], 
                           current_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter out records that have already been uploaded based on qc_last_run."""
+        """Filter out records that have already been uploaded based on qc_last_run and qc_status."""
         if not current_data:
             return new_data
         
-        # Create lookup of current qc_last_run values by ptid
+        # Create lookup of current qc_last_run and qc_status values by record identity
         current_lookup = {}
         for record in current_data:
-            record_id = record.get('ptid')
-            qc_last_run = record.get('qc_last_run')
-            if record_id and qc_last_run:
-                current_lookup[record_id] = qc_last_run
+            identity = self._get_record_identity(record)
+            qc_last_run = str(record.get('qc_last_run') or '')
+            qc_status = str(record.get('qc_status') or '')
+            if identity[0] and qc_last_run:
+                current_lookup[identity] = (qc_last_run, qc_status)
         
         # Filter new records
         new_records = []
         for record in new_data:
-            record_id = record.get('ptid')
-            qc_last_run = record.get('qc_last_run')
+            identity = self._get_record_identity(record)
+            qc_last_run = str(record.get('qc_last_run') or '')
+            qc_status = str(record.get('qc_status') or '')
             
-            if record_id and qc_last_run:
-                current_qc_last_run = current_lookup.get(record_id)
+            if identity[0] and qc_last_run:
+                current_values = current_lookup.get(identity)
                 
-                # Upload if record is new or qc_last_run has changed
-                if not current_qc_last_run or current_qc_last_run != qc_last_run:
+                if not current_values:
+                    # Record not in REDCap yet
+                    new_records.append(record)
+                elif current_values[0] != qc_last_run:
+                    # qc_last_run date changed
+                    new_records.append(record)
+                elif current_values[1] != qc_status:
+                    # Same run date but qc_status content changed (e.g. cleared/passed same day)
+                    self.logger.info(
+                        f"Record {identity[0]} event={identity[1]} instance={identity[3]}: "
+                        f"qc_last_run unchanged but qc_status changed — queuing for upload"
+                    )
                     new_records.append(record)
                 else:
-                    self.logger.debug(f"Skipping record {record_id} - already uploaded")
+                    self.logger.debug(f"Skipping record {identity[0]} - already uploaded")
         
         self.logger.info(f"Filtered {len(new_data)} records down to {len(new_records)} new records")
         return new_records

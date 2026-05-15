@@ -1,7 +1,6 @@
 """REDCap data fetching module."""
 
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -9,12 +8,15 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from ..config.redcap_config import REDCapConfig
+from ..logging.logging_config import get_logger
+
+logger = get_logger("fetcher")
 
 
 class REDCapFetcher:
     """Handles fetching data from REDCap API."""
     
-    def __init__(self, config: REDCapConfig, logger: logging.Logger):
+    def __init__(self, config: REDCapConfig):
         self.config = config
         self.logger = logger
         self.session = requests.Session()

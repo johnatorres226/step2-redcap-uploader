@@ -75,16 +75,16 @@ class TestFileMonitor:
     
     def test_init(self, temp_dir, test_logger):
         """Test FileMonitor initialization."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         assert monitor.watch_directory == temp_dir
-        assert monitor.logger == test_logger
+        assert monitor.logger is not None
         assert monitor.tracking_file == temp_dir / "file_tracking.json"
         assert isinstance(monitor._file_history, dict)
     
     def test_get_file_hash(self, temp_dir, test_logger):
         """Test getting file hash."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create test file with known content
         test_file = temp_dir / "test.txt"
@@ -103,7 +103,7 @@ class TestFileMonitor:
     
     def test_get_file_hash_nonexistent_file(self, temp_dir, test_logger):
         """Test getting hash for non-existent file."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         nonexistent_file = temp_dir / "does_not_exist.txt"
         
@@ -117,7 +117,7 @@ class TestFileMonitor:
     
     def test_has_file_changed_new_file(self, temp_dir, test_logger):
         """Test detecting new file."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create new file
         test_file = temp_dir / "new_file.json"
@@ -132,7 +132,7 @@ class TestFileMonitor:
     
     def test_has_file_changed_existing_unchanged_file(self, temp_dir, test_logger):
         """Test detecting unchanged file."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create file and mark as processed
         test_file = temp_dir / "existing_file.json"
@@ -150,7 +150,7 @@ class TestFileMonitor:
     
     def test_has_file_changed_modified_file(self, temp_dir, test_logger):
         """Test detecting modified file."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create file and mark as processed
         test_file = temp_dir / "modified_file.json"
@@ -170,7 +170,7 @@ class TestFileMonitor:
     
     def test_mark_file_processed(self, temp_dir, test_logger):
         """Test marking file as processed."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create test file
         test_file = temp_dir / "processed_file.json"
@@ -190,7 +190,7 @@ class TestFileMonitor:
     
     def test_get_file_status(self, temp_dir, test_logger):
         """Test getting file status."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create and process some files
         for i in range(3):
@@ -214,7 +214,7 @@ class TestFileMonitor:
     
     def test_get_new_files(self, temp_dir, test_logger, sample_qc_data):
         """Test getting new files."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create processed and unprocessed files
         processed_file = temp_dir / "QC_Status_Report_processed.json"
@@ -239,7 +239,7 @@ class TestFileMonitor:
     def test_save_and_load_history(self, temp_dir, test_logger):
         """Test saving and loading history."""
         # Create monitor and process some files
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         test_file = temp_dir / "save_load_file.json"
         with open(test_file, 'w') as f:
@@ -248,7 +248,7 @@ class TestFileMonitor:
         monitor.mark_file_processed(test_file, records_count=1)
         
         # Create new monitor (should load existing history)
-        new_monitor = FileMonitor(temp_dir, test_logger)
+        new_monitor = FileMonitor(temp_dir)
         
         # History should be loaded
         file_path_str = str(test_file)
@@ -259,7 +259,7 @@ class TestFileMonitor:
     
     def test_cleanup_old_entries(self, temp_dir, test_logger):
         """Test cleaning up old entries."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Add some history (cleanup method should exist)
         test_file = temp_dir / "cleanup_test.json"
@@ -277,7 +277,7 @@ class TestFileMonitor:
     
     def test_file_hash_consistency(self, temp_dir, test_logger):
         """Test that file hash calculation is consistent."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create test file
         test_file = temp_dir / "hash_test.json"
@@ -296,7 +296,7 @@ class TestFileMonitor:
     
     def test_large_file_handling(self, temp_dir, test_logger):
         """Test handling of large files."""
-        monitor = FileMonitor(temp_dir, test_logger)
+        monitor = FileMonitor(temp_dir)
         
         # Create large file
         large_file = temp_dir / "large_file.json"

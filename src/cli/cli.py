@@ -1,7 +1,6 @@
 """Command Line Interface for UDSv4 REDCap QC Uploader."""
 
 import json
-import logging
 import os
 import re
 import sys
@@ -14,109 +13,79 @@ import click
 
 from src.config.redcap_config import REDCapConfig
 from src.config.settings import Settings
-from src.uploader.fetcher import REDCapFetcher
+from src.logging.logging_config import get_logger, setup_logging
 from src.uploader.uploader import QCDataUploader
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+_TELEMETRY_DIR = Path(os.getenv("TELEMETRY_PATH") or str(project_root / "telemetry")).resolve()
+_TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
+
 # Version from pyproject.toml
-__version__ = "0.1.0"
+__version__ = "0.2.0"
+
+# Initialize logger
+logger = get_logger("cli")
 
 def find_latest_qc_status_file(upload_path: Path) -> Optional[Path]:
     """
     Find the most recently created QC Status Report file.
     Expected pattern: QC_Status_Report_{DDMMMYYYY}_{HHMMSS}.json
     Falls back to QC_Status_Report_{DDMMMYYYY}.json if no timestamp format found.
-    
+
     Returns the file with the latest timestamp based on filename, not file system dates.
     """
     pattern_with_time = re.compile(r'^QC_Status_Report_(\d{2}[A-Z]{3}\d{4})_(\d{6})\.json$', re.IGNORECASE)
     pattern_date_only = re.compile(r'^QC_Status_Report_(\d{2}[A-Z]{3}\d{4})\.json$', re.IGNORECASE)
-    
+
     qc_files = []
-    
-    # Look for QC Status Report files
+
     for file in upload_path.glob("QC_Status_Report_*.json"):
         match_with_time = pattern_with_time.match(file.name)
         match_date_only = pattern_date_only.match(file.name)
-        
+
         if match_with_time:
             date_str, time_str = match_with_time.groups()
             try:
-                # Parse date and time from filename
                 file_datetime = dt.strptime(f"{date_str}_{time_str}", "%d%b%Y_%H%M%S")
                 qc_files.append((file_datetime, file))
             except ValueError:
-                # If date parsing fails, fall back to file system date
                 qc_files.append((dt.fromtimestamp(file.stat().st_mtime), file))
         elif match_date_only:
             date_str = match_date_only.group(1)
             try:
-                # Parse date only (assume midnight)
                 file_datetime = dt.strptime(date_str, "%d%b%Y")
                 qc_files.append((file_datetime, file))
             except ValueError:
-                # If date parsing fails, fall back to file system date
                 qc_files.append((dt.fromtimestamp(file.stat().st_mtime), file))
-    
+
     if not qc_files:
         return None
-    
-    # Sort by datetime and return the most recent
+
     qc_files.sort(key=lambda x: x[0], reverse=True)
     return qc_files[0][1]
 
 
-def create_output_directory(output_dir: Optional[Path] = None) -> Path:
+def create_output_directory(output_dir: Optional[Path] = None, test_run: bool = False) -> Path:
     """Create output directory for the upload process."""
     if output_dir:
         output_dir = Path(output_dir)
     else:
-        # Generate timestamp in requested format: DDMMMYYYY and HHMMSS
         date_part = datetime.now().strftime('%d%b%Y')
         time_part = datetime.now().strftime('%H%M%S')
-        dir_name = f"REDCAP_Uploader_{date_part}_{time_part}"
+        prefix = "TEST_" if test_run else ""
+        dir_name = f"{prefix}REDCAP_Uploader_{date_part}_{time_part}"
         output_dir = Path('./output') / dir_name
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
 
-def setup_logging(initials: str) -> logging.Logger:
-    """Setup logging configuration."""
-    logger = logging.getLogger("udsv4_redcap_uploader")
-    logger.setLevel(logging.INFO)
-    
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
-    
-    return logger
-
-
-@click.group(name='udsv4-ru')
+@click.group(name='udsv4-ru', invoke_without_command=True)
 @click.version_option(version=__version__, prog_name='udsv4-ru')
-def cli():
-    """UDSv4 REDCap Uploader - A tool for uploading QC Status data to REDCap.
-    
-    This tool helps you upload QC Status Report data to REDCap with 
-    comprehensive audit logging and backup capabilities.
-    
-    Commands:
-      upload    Upload QC Status Report data to REDCap
-      config    Show current configuration settings
-    """
-    pass
-
-
-@cli.command()
-@click.option('-i', '--initials', required=True, type=str,
+@click.option('-i', '--initials', type=str,
               help='User initials for logging purposes')
 @click.option('-u', '--upload-dir', type=click.Path(exists=True, path_type=Path),
               help='Directory containing QC Status Report JSON files to upload')
@@ -124,116 +93,71 @@ def cli():
               help='Directory to save upload results and logs')
 @click.option('--force', is_flag=True, default=False,
               help='Force upload even if data appears to be already uploaded')
-def upload(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path], force: bool):
-    """
-    Upload QC Status Report data to REDCap.
-    
-    This command performs a complete end-to-end process:
-    1. Fetches current data from REDCap for backup
-    2. Finds the latest QC Status Report file in upload directory 
-    3. Uploads the data to REDCap with audit trail
-    4. Saves all results and logs to output directory
-    
+@click.option('--test', 'test_run', is_flag=True, default=False,
+              help='Test mode: labels output directory as TEST_* without changing behavior')
+@click.pass_context
+def cli(ctx, initials: Optional[str], upload_dir: Optional[Path], output_dir: Optional[Path],
+        force: bool, test_run: bool):
+    """UDSv4 REDCap Uploader - Upload QC Status Report data to REDCap.
+
+    This tool finds the latest QC Status Report file in the upload directory
+    and uploads the data to REDCap with an audit trail.
+
     Examples:
-        udsv4-ru upload -i JT
-        udsv4-ru upload -i JT -u ./my_data -o ./my_output --force
+        udsv4-ru --initials JT
+        udsv4-ru --initials JT --upload-dir ./my_data --output-dir ./my_output --force
+
+    Commands:
+      config    Show current configuration settings
     """
-    logger = setup_logging(initials)
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if initials is None:
+        click.echo(ctx.get_help())
+        ctx.exit(0)
+
+    setup_logging(log_level="INFO", console_output=True)
+
     logger.info(f"Starting UDSv4 REDCap upload process (User: {initials})")
-    
+
+    started_at = datetime.now()
+
     try:
-        # Initialize components
         config = REDCapConfig.from_env()
         settings = Settings.from_env()
 
-        # Initialize uploader and fetcher
-        uploader = QCDataUploader(config, settings, logger)
-        fetcher = REDCapFetcher(config, logger)
-        
-        # Determine upload directory
+        uploader = QCDataUploader(config, settings)
+
         if not upload_dir:
             upload_dir = Path(settings.UPLOAD_READY_PATH)
-        
-        # Create output directory
-        output_directory = create_output_directory(output_dir)
-        
+
+        output_directory = create_output_directory(output_dir, test_run)
+
         logger.info(f"Upload directory: {upload_dir}")
         logger.info(f"Output directory: {output_directory}")
         logger.info(f"Force upload: {force}")
-        
-        # Step 1: Fetch current data from REDCap
-        logger.info("Step 1: Fetching current data from REDCap...")
-        current_data_result = fetcher.fetch_qc_status_data()
-        
-        if not current_data_result['success']:
-            logger.error(f"Failed to fetch current data: {current_data_result['error']}")
-            raise click.ClickException("Failed to fetch current REDCap data")
-        
-        logger.info(f"Successfully fetched {current_data_result['record_count']} records from REDCap")
-        
-        # Step 2: Save fetched data to output directory
-        # Create fetch subdirectory (rename to Preupload)
-        fetch_dir = output_directory / "Preupload"
-        
-        save_result = fetcher.save_fetched_data_to_output(
-            current_data_result, 
-            fetch_dir, 
-            "BackupFile_Database",
-            create_subdir=False
-        )
-        
-        if save_result['success']:
-            logger.info(f"Current REDCap data saved to: {save_result['file_path']}")
-        
-        # Step 3: Find and validate upload file
+
+        # Step 1: Find and validate upload file
         if not upload_dir.exists():
             logger.error(f"Upload directory does not exist: {upload_dir}")
             raise click.ClickException(f"Upload directory not found: {upload_dir}")
-        
+
         latest_file = find_latest_qc_status_file(upload_dir)
         if not latest_file:
             logger.error("No QC Status Report files found with expected pattern")
-            # Show available files for debugging
             json_files = list(upload_dir.glob("*.json"))
             if json_files:
                 logger.info("Available JSON files:")
                 for file in json_files:
                     logger.info(f"  - {file.name}")
             raise click.ClickException("No valid QC Status Report files found")
-        
+
         logger.info(f"Found latest QC Status Report file: {latest_file.name}")
-        
-        # Step 4: Create targeted backup
-        backup_result = {'success': False, 'files_created': []}
-        try:
-            with open(latest_file, 'r', encoding='utf-8') as f:
-                file_data = json.load(f)
-            
-            upload_data_preview = []
-            if isinstance(file_data, list):
-                upload_data_preview.extend(file_data)
-            elif isinstance(file_data, dict) and 'data' in file_data:
-                upload_data_preview.extend(file_data['data'])
-            else:
-                upload_data_preview.append(file_data)
-            
-            # Create targeted backup based on upload data
-            backup_result = fetcher.save_backup_files_to_directory(
-                current_data_result,
-                fetch_dir,
-                upload_data_preview
-            )
-            
-            if backup_result['success']:
-                logger.info(f"Targeted backup file created: {len(backup_result['files_created'])} files")
-                
-        except Exception as e:
-            logger.warning(f"Could not create targeted backup: {str(e)}")
 
-        # Step 5: Perform upload
-        logger.info("Step 5: Uploading data to REDCap...")
+        # Step 2: Perform upload
+        logger.info("Uploading data to REDCap...")
 
-        # Create upload subdirectory (rename to Upload)
         upload_results_dir = output_directory / "Upload"
 
         upload_result = uploader.upload_qc_status_data(
@@ -248,38 +172,35 @@ def upload(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path]
             logger.info("Upload completed successfully!")
             logger.info(f"Records processed: {upload_result.get('records_processed', 0)}")
 
-            # Create comprehensive summary log
-            summary_log = {
-                'upload_timestamp': datetime.now().isoformat(),
-                'user_initials': initials,
-                'force_upload': force,
-                'upload_file': latest_file.name,
-                'fetch_results': {
-                    'records_fetched': current_data_result['record_count'],
-                    'current_data_backup': save_result.get('file_path', 'N/A'),
-                    'targeted_qc_backup': backup_result.get('qc_backup_file', 'N/A'),
-                    'fetch_directory': str(fetch_dir)
+            completed_at = datetime.now()
+            telemetry = {
+                "run_id": completed_at.strftime("%H%M%S"),
+                "step": "redcap-uploader",
+                "event_type": "RU",
+                "user": initials,
+                "started_at": started_at.isoformat(),
+                "completed_at": completed_at.isoformat(),
+                "duration_s": round((completed_at - started_at).total_seconds(), 1),
+                "status": "success",
+                "payload": {
+                    "source_file": latest_file.name,
+                    "records_uploaded": upload_result.get('records_processed', 0),
+                    "destination": "REDCap",
+                    "force_upload": force,
                 },
-                'upload_results': {
-                    'records_processed': upload_result.get('records_processed', 0),
-                    'receipt_file': upload_result.get('receipt_file', 'N/A'),
-                    'uploaded_data_file': upload_result.get('uploaded_data_file', 'N/A'),
-                    'upload_directory': str(upload_results_dir)
-                }
+                "error": None,
             }
+            telemetry_path = _TELEMETRY_DIR / f"RU_TELEMETRY_LOG_{completed_at.strftime('%H%M%S')}.json"
+            with open(telemetry_path, 'w', encoding='utf-8') as f:
+                json.dump(telemetry, f, indent=2, ensure_ascii=False)
 
-            # Save summary log
-            summary_log_file = output_directory / "UPLOAD_SUMMARY.json"
-            with open(summary_log_file, 'w', encoding='utf-8') as f:
-                json.dump(summary_log, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Upload summary saved to: {summary_log_file}")
+            logger.info(f"Telemetry log saved to: {telemetry_path}")
             logger.info(f"All outputs in: {output_directory}")
             logger.info("UDSv4 REDCap upload process completed successfully!")
         else:
             logger.error(f"Upload failed: {upload_result.get('error', 'Unknown error')}")
             raise click.ClickException("Upload process failed")
-        
+
     except Exception as e:
         logger.error(f"Upload process failed: {str(e)}")
         raise click.ClickException(str(e))
@@ -288,21 +209,20 @@ def upload(initials: str, upload_dir: Optional[Path], output_dir: Optional[Path]
 @cli.command()
 def config():
     """Show current configuration settings.
-    
+
     Displays essential configuration and connection status.
     """
     try:
-        # Load configurations
         settings = Settings.from_env()
         redcap_config = REDCapConfig.from_env()
-        
+
         click.echo("=== UDSv4 REDCap Uploader Configuration ===")
         click.echo(f"Version: {__version__}")
         click.echo(f"REDCap URL: {redcap_config.api_url}")
         click.echo(f"API Token: {'✓ Set' if redcap_config.api_token else '✗ Not Set'}")
         click.echo(f"Upload Path: {settings.UPLOAD_READY_PATH}")
         click.echo(f"Output Path: {settings.OUTPUT_DIR}")
-        
+
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
 

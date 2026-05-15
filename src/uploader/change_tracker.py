@@ -1,7 +1,6 @@
 """Change tracking and audit logging functionality."""
 
 import json
-import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +8,9 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from ..logging.logging_config import get_logger
+
+logger = get_logger("change_tracker")
 
 
 @dataclass
