@@ -29,6 +29,7 @@ __version__ = "0.2.0"
 # Initialize logger
 logger = get_logger("cli")
 
+
 def find_latest_qc_status_file(upload_path: Path) -> Optional[Path]:
     """
     Find the most recently created QC Status Report file.
@@ -37,8 +38,8 @@ def find_latest_qc_status_file(upload_path: Path) -> Optional[Path]:
 
     Returns the file with the latest timestamp based on filename, not file system dates.
     """
-    pattern_with_time = re.compile(r'^QC_Status_Report_(\d{2}[A-Z]{3}\d{4})_(\d{6})\.json$', re.IGNORECASE)
-    pattern_date_only = re.compile(r'^QC_Status_Report_(\d{2}[A-Z]{3}\d{4})\.json$', re.IGNORECASE)
+    pattern_with_time = re.compile(r"^QC_Status_Report_(\d{2}[A-Z]{3}\d{4})_(\d{6})\.json$", re.IGNORECASE)
+    pattern_date_only = re.compile(r"^QC_Status_Report_(\d{2}[A-Z]{3}\d{4})\.json$", re.IGNORECASE)
 
     qc_files = []
 
@@ -73,31 +74,38 @@ def create_output_directory(output_dir: Optional[Path] = None, test_run: bool = 
     if output_dir:
         output_dir = Path(output_dir)
     else:
-        date_part = datetime.now().strftime('%d%b%Y')
-        time_part = datetime.now().strftime('%H%M%S')
+        date_part = datetime.now().strftime("%d%b%Y")
+        time_part = datetime.now().strftime("%H%M%S")
         prefix = "TEST_" if test_run else ""
         dir_name = f"{prefix}REDCAP_Uploader_{date_part}_{time_part}"
-        output_dir = Path('./output') / dir_name
+        output_dir = Path("./output") / dir_name
 
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
 
-@click.group(name='udsv4-ru', invoke_without_command=True)
-@click.version_option(version=__version__, prog_name='udsv4-ru')
-@click.option('-i', '--initials', type=str,
-              help='User initials for logging purposes')
-@click.option('-u', '--upload-dir', type=click.Path(exists=True, path_type=Path),
-              help='Directory containing QC Status Report JSON files to upload')
-@click.option('-o', '--output-dir', type=click.Path(path_type=Path),
-              help='Directory to save upload results and logs')
-@click.option('--force', is_flag=True, default=False,
-              help='Force upload even if data appears to be already uploaded')
-@click.option('--test', 'test_run', is_flag=True, default=False,
-              help='Test mode: labels output directory as TEST_* without changing behavior')
+@click.group(name="udsv4-ru", invoke_without_command=True)
+@click.version_option(version=__version__, prog_name="udsv4-ru")
+@click.option("-i", "--initials", type=str, help="User initials for logging purposes")
+@click.option(
+    "-u",
+    "--upload-dir",
+    type=click.Path(exists=True, path_type=Path),
+    help="Directory containing QC Status Report JSON files to upload",
+)
+@click.option("-o", "--output-dir", type=click.Path(path_type=Path), help="Directory to save upload results and logs")
+@click.option("--force", is_flag=True, default=False, help="Force upload even if data appears to be already uploaded")
+@click.option(
+    "--test",
+    "test_run",
+    is_flag=True,
+    default=False,
+    help="Test mode: labels output directory as TEST_* without changing behavior",
+)
 @click.pass_context
-def cli(ctx, initials: Optional[str], upload_dir: Optional[Path], output_dir: Optional[Path],
-        force: bool, test_run: bool):
+def cli(
+    ctx, initials: Optional[str], upload_dir: Optional[Path], output_dir: Optional[Path], force: bool, test_run: bool
+):
     """UDSv4 REDCap Uploader - Upload QC Status Report data to REDCap.
 
     This tool finds the latest QC Status Report file in the upload directory
@@ -162,13 +170,13 @@ def cli(ctx, initials: Optional[str], upload_dir: Optional[Path], output_dir: Op
 
         upload_result = uploader.upload_qc_status_data(
             specific_file=latest_file,
-            initials=initials,
+            initials=initials or "",
             dry_run=False,
             force_upload=force,
-            custom_output_dir=upload_results_dir
+            custom_output_dir=upload_results_dir,
         )
 
-        if upload_result['success']:
+        if upload_result["success"]:
             logger.info("Upload completed successfully!")
             logger.info(f"Records processed: {upload_result.get('records_processed', 0)}")
 
@@ -184,14 +192,14 @@ def cli(ctx, initials: Optional[str], upload_dir: Optional[Path], output_dir: Op
                 "status": "success",
                 "payload": {
                     "source_file": latest_file.name,
-                    "records_uploaded": upload_result.get('records_processed', 0),
+                    "records_uploaded": upload_result.get("records_processed", 0),
                     "destination": "REDCap",
                     "force_upload": force,
                 },
                 "error": None,
             }
             telemetry_path = _TELEMETRY_DIR / f"RU_TELEMETRY_LOG_{completed_at.strftime('%H%M%S')}.json"
-            with open(telemetry_path, 'w', encoding='utf-8') as f:
+            with open(telemetry_path, "w", encoding="utf-8") as f:
                 json.dump(telemetry, f, indent=2, ensure_ascii=False)
 
             logger.info(f"Telemetry log saved to: {telemetry_path}")
@@ -227,5 +235,5 @@ def config():
         click.echo(f"Error: {str(e)}", err=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

@@ -14,50 +14,50 @@ load_dotenv()
 @dataclass
 class Settings:
     """Main application settings."""
-    
+
     # File monitoring
     CHECK_FILE_CHANGES: bool = True
     FILE_HASH_ALGORITHM: str = "sha256"
-    
+
     # Data processing
     BATCH_SIZE: int = 100
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 1.0  # seconds
-    
+
     # Validation
     VALIDATE_DATA: bool = True
     STRICT_VALIDATION: bool = False
-    
+
     # Logging
     LOG_LEVEL: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_TO_FILE: bool = True
     LOG_TO_CONSOLE: bool = True
-    
+
     # Directories
     BASE_DIR: Path = field(default_factory=lambda: Path(__file__).parent.parent.parent)
     DATA_DIR: Path = field(init=False)
     LOGS_DIR: Path = field(init=False)
     BACKUPS_DIR: Path = field(init=False)
     OUTPUT_DIR: Path = field(init=False)
-    
+
     # Upload paths
     UPLOAD_READY_PATH: str = field(default_factory=lambda: os.getenv("UPLOAD_READY_PATH", "./data"))
     BACKUP_LOG_PATH: str = field(default_factory=lambda: os.getenv("BACKUP_LOG_PATH", "./backups"))
-    
+
     # File tracking
     LAST_PROCESSED_FILE: str = ".last_processed"
     FILE_TRACKING_DB: str = "file_tracking.json"
-    
+
     # REDCap specific
     DEFAULT_EVENTS: List[str] = field(default_factory=list)
     DEFAULT_FORMS: List[str] = field(default_factory=list)
-    
+
     # Safety features
     DRY_RUN_DEFAULT: bool = False
     BACKUP_BEFORE_UPLOAD: bool = True
     CONFIRM_UPLOADS: bool = True
-    
+
     def __post_init__(self):
         """Initialize computed fields."""
         # Use environment variables if available, otherwise use BASE_DIR
@@ -65,11 +65,11 @@ class Settings:
         self.LOGS_DIR = Path(os.getenv("LOG_PATH", self.BASE_DIR / "logs"))
         self.BACKUPS_DIR = Path(self.BACKUP_LOG_PATH)
         self.OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", self.BASE_DIR / "output"))
-        
+
         # Create directories if they don't exist
         for directory in [self.DATA_DIR, self.LOGS_DIR, self.BACKUPS_DIR, self.OUTPUT_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
-    
+
     @classmethod
     def from_env(cls) -> "Settings":
         """Create settings instance from environment variables."""

@@ -6,10 +6,4 @@ from .fetcher import REDCapFetcher
 from .file_monitor import FileMonitor
 from .uploader import QCDataUploader
 
-__all__ = [
-    "FileMonitor",
-    "DataProcessor",
-    "ChangeTracker",
-    "QCDataUploader",
-    "REDCapFetcher"
-]
+__all__ = ["FileMonitor", "DataProcessor", "ChangeTracker", "QCDataUploader", "REDCapFetcher"]

@@ -42,8 +42,5 @@ build = "^0.10.0"
 twine = "^5.0.0"
 
 
-[tool.poetry.extras]
-analysis = ["numpy", "scipy", "matplotlib", "seaborn"]
-
 [tool.poetry.scripts]
 udsv4-ru = "src.cli.cli:cli"

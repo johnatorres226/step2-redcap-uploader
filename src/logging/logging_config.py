@@ -181,10 +181,7 @@ def setup_logging(
             "use_icons": False,  # Disable icons to reduce clutter
         },
         "detailed_file": {
-            "format": (
-                "%(asctime)s | %(levelname)-8s | %(name)-20s | "
-                "%(filename)s:%(lineno)d | %(message)s"
-            ),
+            "format": ("%(asctime)s | %(levelname)-8s | %(name)-20s | %(filename)s:%(lineno)d | %(message)s"),
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
         "json_structured": {
