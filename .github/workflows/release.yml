@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]*'
+
+jobs:
+  # Enforce that the tag version matches pyproject.toml
+  validate:
+    name: Validate Release Tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches pyproject.toml version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          TOML_VERSION=$(grep -E '^version = ' pyproject.toml | cut -d '"' -f2)
+          EXPECTED_TAG="v${TOML_VERSION}"
+          echo "Git tag    : $TAG"
+          echo "pyproject  : $TOML_VERSION  (expected tag: $EXPECTED_TAG)"
+          if [ "$TAG" != "$EXPECTED_TAG" ]; then
+            echo "❌ Tag '$TAG' does not match pyproject.toml version '$TOML_VERSION'"
+            echo "Bump the version in pyproject.toml and src/cli/cli.py before tagging."
+            exit 1
+          fi
+          echo "✅ Tag matches pyproject.toml version"
+
+      - name: Check CHANGELOG has entry for this version
+        run: |
+          VERSION=$(grep -E '^version = ' pyproject.toml | cut -d '"' -f2)
+          if ! grep -qE "^\#\# \[${VERSION}\]" CHANGELOG.md; then
+            echo "❌ CHANGELOG.md has no entry for version $VERSION"
+            echo "Add a [${VERSION}] section to CHANGELOG.md before releasing."
+            exit 1
+          fi
+          echo "✅ CHANGELOG.md has entry for $VERSION"
+
+  # Build the distribution artifacts
+  build:
+    name: Build Distribution
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-release-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-release-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Clean previous artifacts
+        run: rm -rf dist/ build/ *.egg-info
+
+      - name: Build wheel and sdist
+        run: poetry build
+
+      - name: Verify built artifacts
+        run: |
+          echo "Built artifacts:"
+          ls -lh dist/
+          pip install dist/*.whl
+          udsv4-ru --version
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.ref_name }}
+          path: dist/
+          retention-days: 30
+
+  # Extract the release notes for this version from CHANGELOG.md and publish the release
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          VERSION=$(grep -E '^version = ' pyproject.toml | cut -d '"' -f2)
+          # Pull the block between ## [VERSION] and the next ## heading
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "⚠️  No release notes found for $VERSION — using tag name as notes."
+            NOTES="Release $VERSION"
+          fi
+          # Write to a temp file to avoid shell-escaping issues
+          echo "$NOTES" > /tmp/release_notes.md
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ github.ref_name }}
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "${{ github.ref_name }}: UDSv4 REDCap QC Uploader"
+          body_path: /tmp/release_notes.md
+          files: dist/*
+          make_latest: true
